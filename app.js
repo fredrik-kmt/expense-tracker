@@ -63,19 +63,27 @@ function setLoading(loading) {
 // Initialization
 // ============================================
 document.addEventListener('DOMContentLoaded', async () => {
-    initializeAuthUI();
     initializeUI();
 
-    // Check for existing session
-    const session = await getSession();
-    if (session) {
-        currentUser = session.user;
-        showApp();
-        await loadAllData();
-    } else {
-        showAuth();
-    }
+    // Skip auth for now - go directly to app with localStorage
+    document.getElementById('authContainer')?.classList.add('hidden');
+    document.getElementById('appContainer')?.classList.remove('hidden');
+
+    loadDataFromLocalStorage();
+    renderAll();
 });
+
+function loadDataFromLocalStorage() {
+    App.expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+    App.budgets = JSON.parse(localStorage.getItem('budgets')) || {};
+    App.monthlyIncome = JSON.parse(localStorage.getItem('monthlyIncome')) || {};
+}
+
+function saveDataToLocalStorage() {
+    localStorage.setItem('expenses', JSON.stringify(App.expenses));
+    localStorage.setItem('budgets', JSON.stringify(App.budgets));
+    localStorage.setItem('monthlyIncome', JSON.stringify(App.monthlyIncome));
+}
 
 function initializeAuthUI() {
     const authForm = document.getElementById('authForm');
@@ -322,24 +330,15 @@ function showSection(sectionId) {
 // ============================================
 async function setMonthlyIncome(e) {
     e.preventDefault();
-    if (App.isLoading) return;
 
     const amount = parseFloat(document.getElementById('netIncome').value);
     const monthKey = getCurrentMonthKey();
 
-    setLoading(true);
-    try {
-        await setMonthlyIncomeInDb(monthKey, amount);
-        App.monthlyIncome[monthKey] = amount;
-        renderIncomeDisplay();
-        renderReports();
-        e.target.reset();
-    } catch (error) {
-        console.error('Error saving income:', error);
-        alert('Error saving income. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+    App.monthlyIncome[monthKey] = amount;
+    saveDataToLocalStorage();
+    renderIncomeDisplay();
+    renderReports();
+    e.target.reset();
 }
 
 function getMonthlyIncome(monthKey = null) {
@@ -366,72 +365,41 @@ function renderIncomeDisplay() {
 }
 
 async function deleteMonthlyIncomeHandler() {
-    if (App.isLoading) return;
-
     const monthKey = getCurrentMonthKey();
-    setLoading(true);
-    try {
-        await deleteMonthlyIncomeFromDb(monthKey);
-        delete App.monthlyIncome[monthKey];
-        renderIncomeDisplay();
-        renderReports();
-    } catch (error) {
-        console.error('Error deleting income:', error);
-        alert('Error deleting income. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+    delete App.monthlyIncome[monthKey];
+    saveDataToLocalStorage();
+    renderIncomeDisplay();
+    renderReports();
 }
 
 // ============================================
 // Expenses
 // ============================================
-async function addExpense(e) {
+function addExpense(e) {
     e.preventDefault();
-    if (App.isLoading) return;
 
     const expense = {
+        id: Date.now(),
         description: document.getElementById('description').value.trim(),
         amount: parseFloat(document.getElementById('amount').value),
         category: document.getElementById('category').value,
         date: document.getElementById('date').value
     };
 
-    setLoading(true);
-    try {
-        const savedExpense = await addExpenseToDb(expense);
-        App.expenses.unshift({
-            id: savedExpense.id,
-            ...expense
-        });
-        renderExpenses();
-        renderBudgets();
+    App.expenses.unshift(expense);
+    saveDataToLocalStorage();
+    renderExpenses();
+    renderBudgets();
 
-        e.target.reset();
-        document.getElementById('date').valueAsDate = new Date();
-    } catch (error) {
-        console.error('Error adding expense:', error);
-        alert('Error adding expense. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+    e.target.reset();
+    document.getElementById('date').valueAsDate = new Date();
 }
 
-async function deleteExpense(id) {
-    if (App.isLoading) return;
-
-    setLoading(true);
-    try {
-        await deleteExpenseFromDb(id);
-        App.expenses = App.expenses.filter(exp => exp.id !== id);
-        renderExpenses();
-        renderBudgets();
-    } catch (error) {
-        console.error('Error deleting expense:', error);
-        alert('Error deleting expense. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+function deleteExpense(id) {
+    App.expenses = App.expenses.filter(exp => exp.id !== id);
+    saveDataToLocalStorage();
+    renderExpenses();
+    renderBudgets();
 }
 
 function getMonthExpenses(monthKey = null) {
@@ -480,41 +448,22 @@ function renderExpenses() {
 // ============================================
 // Budgets
 // ============================================
-async function setBudget(e) {
+function setBudget(e) {
     e.preventDefault();
-    if (App.isLoading) return;
 
     const category = document.getElementById('budgetCategory').value;
     const amount = parseFloat(document.getElementById('budgetAmount').value);
 
-    setLoading(true);
-    try {
-        await setBudgetInDb(category, amount);
-        App.budgets[category] = amount;
-        renderBudgets();
-        e.target.reset();
-    } catch (error) {
-        console.error('Error saving budget:', error);
-        alert('Error saving budget. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+    App.budgets[category] = amount;
+    saveDataToLocalStorage();
+    renderBudgets();
+    e.target.reset();
 }
 
-async function deleteBudget(category) {
-    if (App.isLoading) return;
-
-    setLoading(true);
-    try {
-        await deleteBudgetFromDb(category);
-        delete App.budgets[category];
-        renderBudgets();
-    } catch (error) {
-        console.error('Error deleting budget:', error);
-        alert('Error deleting budget. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+function deleteBudget(category) {
+    delete App.budgets[category];
+    saveDataToLocalStorage();
+    renderBudgets();
 }
 
 function renderBudgets() {
@@ -794,12 +743,12 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
-async function importData(event) {
+function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
         try {
             const data = JSON.parse(e.target.result);
 
@@ -807,55 +756,38 @@ async function importData(event) {
                 return;
             }
 
-            setLoading(true);
-
             // Import expenses
             if (data.expenses && Array.isArray(data.expenses)) {
-                for (const exp of data.expenses) {
-                    try {
-                        await addExpenseToDb(exp);
-                    } catch (err) {
-                        console.error('Error importing expense:', err);
-                    }
-                }
+                data.expenses.forEach(exp => {
+                    // Add new id to avoid conflicts
+                    exp.id = Date.now() + Math.random();
+                    App.expenses.push(exp);
+                });
             }
 
             // Import budgets
             if (data.budgets && typeof data.budgets === 'object') {
-                for (const [category, amount] of Object.entries(data.budgets)) {
-                    try {
-                        await setBudgetInDb(category, amount);
-                    } catch (err) {
-                        console.error('Error importing budget:', err);
-                    }
-                }
+                Object.assign(App.budgets, data.budgets);
             }
 
             // Import monthly income
             if (data.monthlyIncome && typeof data.monthlyIncome === 'object') {
-                for (const [monthKey, amount] of Object.entries(data.monthlyIncome)) {
-                    try {
-                        await setMonthlyIncomeInDb(monthKey, amount);
-                    } catch (err) {
-                        console.error('Error importing income:', err);
-                    }
-                }
+                Object.assign(App.monthlyIncome, data.monthlyIncome);
             }
 
-            await loadAllData();
+            saveDataToLocalStorage();
+            renderAll();
             alert('Data imported successfully!');
         } catch (err) {
             alert('Error importing data. Please check the file format.');
             console.error(err);
-        } finally {
-            setLoading(false);
         }
     };
     reader.readAsText(file);
     event.target.value = '';
 }
 
-async function clearAllData() {
+function clearAllData() {
     if (!confirm('Are you sure you want to delete ALL data?\n\nThis action cannot be undone!')) {
         return;
     }
@@ -863,34 +795,12 @@ async function clearAllData() {
         return;
     }
 
-    setLoading(true);
-    try {
-        // Delete all expenses
-        for (const exp of App.expenses) {
-            await deleteExpenseFromDb(exp.id);
-        }
-
-        // Delete all budgets
-        for (const category of Object.keys(App.budgets)) {
-            await deleteBudgetFromDb(category);
-        }
-
-        // Delete all monthly income
-        for (const monthKey of Object.keys(App.monthlyIncome)) {
-            await deleteMonthlyIncomeFromDb(monthKey);
-        }
-
-        App.expenses = [];
-        App.budgets = {};
-        App.monthlyIncome = {};
-        renderAll();
-        alert('All data has been cleared.');
-    } catch (error) {
-        console.error('Error clearing data:', error);
-        alert('Error clearing data. Please try again.');
-    } finally {
-        setLoading(false);
-    }
+    App.expenses = [];
+    App.budgets = {};
+    App.monthlyIncome = {};
+    saveDataToLocalStorage();
+    renderAll();
+    alert('All data has been cleared.');
 }
 
 // ============================================

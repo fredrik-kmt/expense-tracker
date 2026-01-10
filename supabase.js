@@ -7,10 +7,17 @@ const SUPABASE_URL = 'https://jtwigywkwncqvwliyyrw.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_0vhTg6Y39X6UC54fTFAD0g_SXNDmcpW';
 
 // Initialize Supabase client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabase = null;
+try {
+    supabase = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch (e) {
+    console.log('Supabase not available, using localStorage');
+}
 
-// Current user state
+// For now, skip authentication - use localStorage only
+// We can enable Supabase sync later
 let currentUser = null;
+const USE_LOCAL_STORAGE = true; // Set to false when ready for cloud sync
 
 // ============================================
 // Authentication Functions
