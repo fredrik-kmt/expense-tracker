@@ -2,6 +2,7 @@
  * Expense Tracker - Main Application
  * ===================================
  * Core functionality for tracking expenses, budgets, and reports
+ * Now with Supabase cloud sync!
  */
 
 // ============================================
@@ -12,13 +13,14 @@ const App = {
     pickerYear: new Date().getFullYear(),
     expenses: [],
     budgets: {},
-    monthlyIncome: {}, // Stores monthly net income by month key (e.g., "2025-01": 25000)
+    monthlyIncome: {},
+    isLoading: false,
 
     // Currency configuration
     currency: {
         symbol: 'kr',
         locale: 'da-DK',
-        position: 'after' // 'before' or 'after'
+        position: 'after'
     },
 
     // Category configuration
@@ -39,7 +41,6 @@ const App = {
 // ============================================
 function formatCurrency(amount, showDecimals = true) {
     const value = showDecimals ? amount.toFixed(2) : Math.round(amount).toString();
-    // Format with Danish thousands separator
     const formatted = parseFloat(value).toLocaleString('da-DK', {
         minimumFractionDigits: showDecimals ? 2 : 0,
         maximumFractionDigits: showDecimals ? 2 : 0
@@ -48,45 +49,151 @@ function formatCurrency(amount, showDecimals = true) {
 }
 
 // ============================================
-// Initialization
+// Loading State
 // ============================================
-document.addEventListener('DOMContentLoaded', () => {
-    loadData();
-    initializeUI();
-    renderAll();
-});
-
-function loadData() {
-    App.expenses = JSON.parse(localStorage.getItem('expenses')) || [];
-    App.budgets = JSON.parse(localStorage.getItem('budgets')) || {};
-    App.monthlyIncome = JSON.parse(localStorage.getItem('monthlyIncome')) || {};
+function setLoading(loading) {
+    App.isLoading = loading;
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) {
+        indicator.classList.toggle('hidden', !loading);
+    }
 }
 
-function saveData() {
-    localStorage.setItem('expenses', JSON.stringify(App.expenses));
-    localStorage.setItem('budgets', JSON.stringify(App.budgets));
-    localStorage.setItem('monthlyIncome', JSON.stringify(App.monthlyIncome));
+// ============================================
+// Initialization
+// ============================================
+document.addEventListener('DOMContentLoaded', async () => {
+    initializeAuthUI();
+    initializeUI();
+
+    // Check for existing session
+    const session = await getSession();
+    if (session) {
+        currentUser = session.user;
+        showApp();
+        await loadAllData();
+    } else {
+        showAuth();
+    }
+});
+
+function initializeAuthUI() {
+    const authForm = document.getElementById('authForm');
+    const signInBtn = document.getElementById('signInBtn');
+    const signUpBtn = document.getElementById('signUpBtn');
+    const signOutBtn = document.getElementById('signOutBtn');
+
+    // Sign in
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAuthError();
+        setAuthLoading(true);
+
+        const email = document.getElementById('authEmail').value;
+        const password = document.getElementById('authPassword').value;
+
+        try {
+            await signIn(email, password);
+        } catch (error) {
+            showAuthError(error.message);
+        } finally {
+            setAuthLoading(false);
+        }
+    });
+
+    // Sign up
+    signUpBtn.addEventListener('click', async () => {
+        hideAuthError();
+        setAuthLoading(true);
+
+        const email = document.getElementById('authEmail').value;
+        const password = document.getElementById('authPassword').value;
+
+        if (!email || !password) {
+            showAuthError('Please enter email and password');
+            setAuthLoading(false);
+            return;
+        }
+
+        if (password.length < 6) {
+            showAuthError('Password must be at least 6 characters');
+            setAuthLoading(false);
+            return;
+        }
+
+        try {
+            await signUp(email, password);
+            showAuthError('Account created! Check your email to confirm, then sign in.');
+        } catch (error) {
+            showAuthError(error.message);
+        } finally {
+            setAuthLoading(false);
+        }
+    });
+
+    // Sign out
+    signOutBtn.addEventListener('click', async () => {
+        try {
+            await signOut();
+            App.expenses = [];
+            App.budgets = {};
+            App.monthlyIncome = {};
+        } catch (error) {
+            console.error('Sign out error:', error);
+        }
+    });
+}
+
+async function loadAllData() {
+    setLoading(true);
+    try {
+        const [expenses, budgets, income] = await Promise.all([
+            fetchExpenses(),
+            fetchBudgets(),
+            fetchMonthlyIncome()
+        ]);
+
+        App.expenses = expenses.map(e => ({
+            id: e.id,
+            description: e.description,
+            amount: parseFloat(e.amount),
+            category: e.category,
+            date: e.date
+        }));
+        App.budgets = budgets;
+        App.monthlyIncome = income;
+
+        renderAll();
+    } catch (error) {
+        console.error('Error loading data:', error);
+        alert('Error loading data. Please refresh the page.');
+    } finally {
+        setLoading(false);
+    }
 }
 
 function initializeUI() {
     // Set default date to today
-    document.getElementById('date').valueAsDate = new Date();
+    const dateInput = document.getElementById('date');
+    if (dateInput) {
+        dateInput.valueAsDate = new Date();
+    }
 
     // Month navigation
-    document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
-    document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+    document.getElementById('prevMonth')?.addEventListener('click', () => changeMonth(-1));
+    document.getElementById('nextMonth')?.addEventListener('click', () => changeMonth(1));
 
     // Month picker
-    document.getElementById('monthPickerBtn').addEventListener('click', toggleMonthPicker);
-    document.getElementById('pickerPrevYear').addEventListener('click', () => changePickerYear(-1));
-    document.getElementById('pickerNextYear').addEventListener('click', () => changePickerYear(1));
-    document.getElementById('goToToday').addEventListener('click', goToToday);
+    document.getElementById('monthPickerBtn')?.addEventListener('click', toggleMonthPicker);
+    document.getElementById('pickerPrevYear')?.addEventListener('click', () => changePickerYear(-1));
+    document.getElementById('pickerNextYear')?.addEventListener('click', () => changePickerYear(1));
+    document.getElementById('goToToday')?.addEventListener('click', goToToday);
 
     // Close picker when clicking outside
     document.addEventListener('click', (e) => {
         const picker = document.getElementById('monthPicker');
         const btn = document.getElementById('monthPickerBtn');
-        if (!picker.contains(e.target) && e.target !== btn) {
+        if (picker && btn && !picker.contains(e.target) && e.target !== btn) {
             picker.classList.add('hidden');
         }
     });
@@ -97,17 +204,17 @@ function initializeUI() {
     });
 
     // Forms
-    document.getElementById('expenseForm').addEventListener('submit', addExpense);
-    document.getElementById('budgetForm').addEventListener('submit', setBudget);
-    document.getElementById('incomeForm').addEventListener('submit', setMonthlyIncome);
+    document.getElementById('expenseForm')?.addEventListener('submit', addExpense);
+    document.getElementById('budgetForm')?.addEventListener('submit', setBudget);
+    document.getElementById('incomeForm')?.addEventListener('submit', setMonthlyIncome);
 
     // Data management
-    document.getElementById('exportBtn').addEventListener('click', exportData);
-    document.getElementById('jsonFileInput').addEventListener('change', importData);
-    document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
+    document.getElementById('exportBtn')?.addEventListener('click', exportData);
+    document.getElementById('jsonFileInput')?.addEventListener('change', importData);
+    document.getElementById('clearDataBtn')?.addEventListener('click', clearAllData);
 
     // History year selector
-    document.getElementById('historyYear').addEventListener('change', renderHistory);
+    document.getElementById('historyYear')?.addEventListener('change', renderHistory);
 }
 
 // ============================================
@@ -121,16 +228,14 @@ function changeMonth(delta) {
 
 function updateMonthDisplay() {
     const options = { month: 'long', year: 'numeric' };
-    document.getElementById('currentMonth').textContent =
-        App.currentDate.toLocaleDateString('en-US', options);
+    const el = document.getElementById('currentMonth');
+    if (el) {
+        el.textContent = App.currentDate.toLocaleDateString('en-US', options);
+    }
 }
 
 function getCurrentMonthKey() {
     return `${App.currentDate.getFullYear()}-${String(App.currentDate.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthKeyFromDate(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 // ============================================
@@ -159,7 +264,6 @@ function renderMonthPicker() {
     const currentMonth = App.currentDate.getMonth();
     const currentYear = App.currentDate.getFullYear();
 
-    // Find months with data
     const monthsWithData = new Set();
     App.expenses.forEach(exp => {
         if (exp.date.startsWith(App.pickerYear.toString())) {
@@ -203,8 +307,8 @@ function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
 
-    document.getElementById(sectionId).classList.add('active');
-    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+    document.getElementById(sectionId)?.classList.add('active');
+    document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
 
     if (sectionId === 'reports') {
         renderReports();
@@ -216,18 +320,26 @@ function showSection(sectionId) {
 // ============================================
 // Monthly Income
 // ============================================
-function setMonthlyIncome(e) {
+async function setMonthlyIncome(e) {
     e.preventDefault();
+    if (App.isLoading) return;
 
     const amount = parseFloat(document.getElementById('netIncome').value);
     const monthKey = getCurrentMonthKey();
 
-    App.monthlyIncome[monthKey] = amount;
-    saveData();
-    renderIncomeDisplay();
-    renderReports();
-
-    e.target.reset();
+    setLoading(true);
+    try {
+        await setMonthlyIncomeInDb(monthKey, amount);
+        App.monthlyIncome[monthKey] = amount;
+        renderIncomeDisplay();
+        renderReports();
+        e.target.reset();
+    } catch (error) {
+        console.error('Error saving income:', error);
+        alert('Error saving income. Please try again.');
+    } finally {
+        setLoading(false);
+    }
 }
 
 function getMonthlyIncome(monthKey = null) {
@@ -239,12 +351,13 @@ function renderIncomeDisplay() {
     const monthKey = getCurrentMonthKey();
     const income = App.monthlyIncome[monthKey];
     const display = document.getElementById('currentIncomeDisplay');
+    if (!display) return;
 
     if (income) {
         display.innerHTML = `
             <div class="income-set">
                 <span>This month's income: <strong>${formatCurrency(income)}</strong></span>
-                <button class="delete-btn" onclick="deleteMonthlyIncome()" title="Remove">&times;</button>
+                <button class="delete-btn" onclick="deleteMonthlyIncomeHandler()" title="Remove">&times;</button>
             </div>
         `;
     } else {
@@ -252,42 +365,73 @@ function renderIncomeDisplay() {
     }
 }
 
-function deleteMonthlyIncome() {
+async function deleteMonthlyIncomeHandler() {
+    if (App.isLoading) return;
+
     const monthKey = getCurrentMonthKey();
-    delete App.monthlyIncome[monthKey];
-    saveData();
-    renderIncomeDisplay();
-    renderReports();
+    setLoading(true);
+    try {
+        await deleteMonthlyIncomeFromDb(monthKey);
+        delete App.monthlyIncome[monthKey];
+        renderIncomeDisplay();
+        renderReports();
+    } catch (error) {
+        console.error('Error deleting income:', error);
+        alert('Error deleting income. Please try again.');
+    } finally {
+        setLoading(false);
+    }
 }
 
 // ============================================
 // Expenses
 // ============================================
-function addExpense(e) {
+async function addExpense(e) {
     e.preventDefault();
+    if (App.isLoading) return;
 
     const expense = {
-        id: Date.now(),
         description: document.getElementById('description').value.trim(),
         amount: parseFloat(document.getElementById('amount').value),
         category: document.getElementById('category').value,
         date: document.getElementById('date').value
     };
 
-    App.expenses.push(expense);
-    saveData();
-    renderExpenses();
-    renderBudgets();
+    setLoading(true);
+    try {
+        const savedExpense = await addExpenseToDb(expense);
+        App.expenses.unshift({
+            id: savedExpense.id,
+            ...expense
+        });
+        renderExpenses();
+        renderBudgets();
 
-    e.target.reset();
-    document.getElementById('date').valueAsDate = new Date();
+        e.target.reset();
+        document.getElementById('date').valueAsDate = new Date();
+    } catch (error) {
+        console.error('Error adding expense:', error);
+        alert('Error adding expense. Please try again.');
+    } finally {
+        setLoading(false);
+    }
 }
 
-function deleteExpense(id) {
-    App.expenses = App.expenses.filter(exp => exp.id !== id);
-    saveData();
-    renderExpenses();
-    renderBudgets();
+async function deleteExpense(id) {
+    if (App.isLoading) return;
+
+    setLoading(true);
+    try {
+        await deleteExpenseFromDb(id);
+        App.expenses = App.expenses.filter(exp => exp.id !== id);
+        renderExpenses();
+        renderBudgets();
+    } catch (error) {
+        console.error('Error deleting expense:', error);
+        alert('Error deleting expense. Please try again.');
+    } finally {
+        setLoading(false);
+    }
 }
 
 function getMonthExpenses(monthKey = null) {
@@ -297,6 +441,8 @@ function getMonthExpenses(monthKey = null) {
 
 function renderExpenses() {
     const container = document.getElementById('expenseList');
+    if (!container) return;
+
     const monthExpenses = getMonthExpenses();
 
     if (monthExpenses.length === 0) {
@@ -309,7 +455,6 @@ function renderExpenses() {
         return;
     }
 
-    // Sort by date descending
     monthExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     container.innerHTML = monthExpenses.map(exp => {
@@ -335,29 +480,49 @@ function renderExpenses() {
 // ============================================
 // Budgets
 // ============================================
-function setBudget(e) {
+async function setBudget(e) {
     e.preventDefault();
+    if (App.isLoading) return;
 
     const category = document.getElementById('budgetCategory').value;
     const amount = parseFloat(document.getElementById('budgetAmount').value);
 
-    App.budgets[category] = amount;
-    saveData();
-    renderBudgets();
-    e.target.reset();
+    setLoading(true);
+    try {
+        await setBudgetInDb(category, amount);
+        App.budgets[category] = amount;
+        renderBudgets();
+        e.target.reset();
+    } catch (error) {
+        console.error('Error saving budget:', error);
+        alert('Error saving budget. Please try again.');
+    } finally {
+        setLoading(false);
+    }
 }
 
-function deleteBudget(category) {
-    delete App.budgets[category];
-    saveData();
-    renderBudgets();
+async function deleteBudget(category) {
+    if (App.isLoading) return;
+
+    setLoading(true);
+    try {
+        await deleteBudgetFromDb(category);
+        delete App.budgets[category];
+        renderBudgets();
+    } catch (error) {
+        console.error('Error deleting budget:', error);
+        alert('Error deleting budget. Please try again.');
+    } finally {
+        setLoading(false);
+    }
 }
 
 function renderBudgets() {
     const container = document.getElementById('budgetList');
+    if (!container) return;
+
     const monthExpenses = getMonthExpenses();
 
-    // Calculate spending per category (excluding income)
     const spending = {};
     monthExpenses.forEach(exp => {
         if (exp.category !== 'income') {
@@ -409,25 +574,18 @@ function renderBudgets() {
 function renderReports() {
     const monthExpenses = getMonthExpenses();
     const monthKey = getCurrentMonthKey();
-
-    // Get net income for this month
     const netIncome = getMonthlyIncome(monthKey);
 
-    // Separate income transactions and expenses
     const expenseTransactions = monthExpenses.filter(e => e.category !== 'income');
-    const incomeTransactions = monthExpenses.filter(e => e.category === 'income');
-
     const totalSpent = expenseTransactions.reduce((sum, exp) => sum + exp.amount, 0);
-    const totalTransactionIncome = incomeTransactions.reduce((sum, exp) => sum + exp.amount, 0);
     const totalBudget = Object.values(App.budgets).reduce((sum, b) => sum + b, 0);
     const budgetRemaining = totalBudget - totalSpent;
-
-    // Calculate savings based on net income
     const savingsFromIncome = netIncome > 0 ? netIncome - totalSpent : 0;
     const savingsPercentage = netIncome > 0 ? ((savingsFromIncome / netIncome) * 100).toFixed(1) : 0;
 
-    // Summary Cards
     const cardsContainer = document.getElementById('summaryCards');
+    if (!cardsContainer) return;
+
     cardsContainer.innerHTML = `
         <div class="summary-card">
             <h3>Monthly Income</h3>
@@ -448,7 +606,10 @@ function renderReports() {
         </div>
     `;
 
-    // Income vs Expenses visualization
+    // Remove old comparison
+    const oldComparison = document.querySelector('.income-vs-expense');
+    if (oldComparison) oldComparison.remove();
+
     if (netIncome > 0) {
         const incomeVsExpenseHtml = `
             <div class="income-vs-expense">
@@ -468,8 +629,10 @@ function renderReports() {
         cardsContainer.insertAdjacentHTML('afterend', incomeVsExpenseHtml);
     }
 
-    // Category Chart (expenses only)
+    // Category Chart
     const chartContainer = document.getElementById('categoryChart');
+    if (!chartContainer) return;
+
     const spending = {};
     expenseTransactions.forEach(exp => {
         spending[exp.category] = (spending[exp.category] || 0) + exp.amount;
@@ -477,10 +640,6 @@ function renderReports() {
 
     const categories = Object.entries(spending).sort((a, b) => b[1] - a[1]);
     const maxSpending = Math.max(...Object.values(spending), 1);
-
-    // Remove old income-vs-expense if exists
-    const oldComparison = document.querySelector('.income-vs-expense');
-    if (oldComparison) oldComparison.remove();
 
     if (categories.length === 0) {
         chartContainer.innerHTML = `
@@ -511,9 +670,10 @@ function renderReports() {
 // History
 // ============================================
 function renderHistory() {
-    // Populate year selector
     const years = getAvailableYears();
     const yearSelect = document.getElementById('historyYear');
+    if (!yearSelect) return;
+
     const currentSelectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
 
     yearSelect.innerHTML = years.map(year =>
@@ -521,11 +681,7 @@ function renderHistory() {
     ).join('');
 
     const selectedYear = parseInt(yearSelect.value);
-
-    // Render month cards
     renderHistoryGrid(selectedYear);
-
-    // Render trend chart
     renderTrendChart(selectedYear);
 }
 
@@ -533,11 +689,9 @@ function getAvailableYears() {
     const years = new Set();
     const currentYear = new Date().getFullYear();
 
-    // Always include current year and previous year
     years.add(currentYear);
     years.add(currentYear - 1);
 
-    // Add years from expenses
     App.expenses.forEach(exp => {
         const year = parseInt(exp.date.split('-')[0]);
         years.add(year);
@@ -548,6 +702,8 @@ function getAvailableYears() {
 
 function renderHistoryGrid(year) {
     const container = document.getElementById('historyGrid');
+    if (!container) return;
+
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                         'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -575,10 +731,11 @@ function renderHistoryGrid(year) {
 
 function renderTrendChart(year) {
     const container = document.getElementById('trendChart');
+    if (!container) return;
+
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    // Get spending for each month
     const monthlySpending = monthNames.map((_, index) => {
         const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
         const monthExpenses = getMonthExpenses(monthKey);
@@ -625,7 +782,7 @@ function exportData() {
         budgets: App.budgets,
         monthlyIncome: App.monthlyIncome,
         exportDate: new Date().toISOString(),
-        version: '1.1'
+        version: '2.0'
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -637,47 +794,102 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
-function importData(event) {
+async function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
 
-            if (data.expenses && Array.isArray(data.expenses)) {
-                App.expenses = data.expenses;
-            }
-            if (data.budgets && typeof data.budgets === 'object') {
-                App.budgets = data.budgets;
-            }
-            if (data.monthlyIncome && typeof data.monthlyIncome === 'object') {
-                App.monthlyIncome = data.monthlyIncome;
+            if (!confirm('This will add the imported data to your existing data. Continue?')) {
+                return;
             }
 
-            saveData();
-            renderAll();
+            setLoading(true);
+
+            // Import expenses
+            if (data.expenses && Array.isArray(data.expenses)) {
+                for (const exp of data.expenses) {
+                    try {
+                        await addExpenseToDb(exp);
+                    } catch (err) {
+                        console.error('Error importing expense:', err);
+                    }
+                }
+            }
+
+            // Import budgets
+            if (data.budgets && typeof data.budgets === 'object') {
+                for (const [category, amount] of Object.entries(data.budgets)) {
+                    try {
+                        await setBudgetInDb(category, amount);
+                    } catch (err) {
+                        console.error('Error importing budget:', err);
+                    }
+                }
+            }
+
+            // Import monthly income
+            if (data.monthlyIncome && typeof data.monthlyIncome === 'object') {
+                for (const [monthKey, amount] of Object.entries(data.monthlyIncome)) {
+                    try {
+                        await setMonthlyIncomeInDb(monthKey, amount);
+                    } catch (err) {
+                        console.error('Error importing income:', err);
+                    }
+                }
+            }
+
+            await loadAllData();
             alert('Data imported successfully!');
         } catch (err) {
             alert('Error importing data. Please check the file format.');
             console.error(err);
+        } finally {
+            setLoading(false);
         }
     };
     reader.readAsText(file);
     event.target.value = '';
 }
 
-function clearAllData() {
-    if (confirm('Are you sure you want to delete ALL data?\n\nThis action cannot be undone!')) {
-        if (confirm('This will permanently delete all your expenses, budgets, and income data. Are you absolutely sure?')) {
-            App.expenses = [];
-            App.budgets = {};
-            App.monthlyIncome = {};
-            saveData();
-            renderAll();
-            alert('All data has been cleared.');
+async function clearAllData() {
+    if (!confirm('Are you sure you want to delete ALL data?\n\nThis action cannot be undone!')) {
+        return;
+    }
+    if (!confirm('This will permanently delete all your expenses, budgets, and income data. Are you absolutely sure?')) {
+        return;
+    }
+
+    setLoading(true);
+    try {
+        // Delete all expenses
+        for (const exp of App.expenses) {
+            await deleteExpenseFromDb(exp.id);
         }
+
+        // Delete all budgets
+        for (const category of Object.keys(App.budgets)) {
+            await deleteBudgetFromDb(category);
+        }
+
+        // Delete all monthly income
+        for (const monthKey of Object.keys(App.monthlyIncome)) {
+            await deleteMonthlyIncomeFromDb(monthKey);
+        }
+
+        App.expenses = [];
+        App.budgets = {};
+        App.monthlyIncome = {};
+        renderAll();
+        alert('All data has been cleared.');
+    } catch (error) {
+        console.error('Error clearing data:', error);
+        alert('Error clearing data. Please try again.');
+    } finally {
+        setLoading(false);
     }
 }
 
@@ -690,11 +902,10 @@ function renderAll() {
     renderBudgets();
     renderIncomeDisplay();
 
-    // Only render reports/history if those sections are active
-    if (document.getElementById('reports').classList.contains('active')) {
+    if (document.getElementById('reports')?.classList.contains('active')) {
         renderReports();
     }
-    if (document.getElementById('history').classList.contains('active')) {
+    if (document.getElementById('history')?.classList.contains('active')) {
         renderHistory();
     }
 }
@@ -713,9 +924,9 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Make functions available globally for onclick handlers
+// Make functions available globally
 window.deleteExpense = deleteExpense;
 window.deleteBudget = deleteBudget;
-window.deleteMonthlyIncome = deleteMonthlyIncome;
+window.deleteMonthlyIncomeHandler = deleteMonthlyIncomeHandler;
 window.selectMonth = selectMonth;
 window.jumpToMonth = jumpToMonth;
