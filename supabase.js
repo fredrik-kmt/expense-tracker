@@ -6,11 +6,13 @@
 const SUPABASE_URL = 'https://jtwigywkwncqvwliyyrw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0d2lneXdrd25jcXZ3bGl5eXJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwMjY0MTksImV4cCI6MjA4MzYwMjQxOX0.i390AR1FdO7UxgeARSm4nwO09ONL5FMiwL7DWWWp14g';
 
-// Initialize Supabase client
-let supabase = null;
+// Initialize Supabase client (renamed to avoid conflict with window.supabase)
+let supabaseClient = null;
+let currentUser = null;
+
 try {
     if (window.supabase && window.supabase.createClient) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log('Supabase client initialized successfully');
     } else {
         console.error('Supabase library not loaded');
@@ -19,14 +21,12 @@ try {
     console.error('Failed to initialize Supabase:', e);
 }
 
-let currentUser = null;
-
 // ============================================
 // Authentication Functions
 // ============================================
 
 async function signUp(email, password) {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
         email,
         password
     });
@@ -36,7 +36,7 @@ async function signUp(email, password) {
 }
 
 async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password
     });
@@ -46,19 +46,19 @@ async function signIn(email, password) {
 }
 
 async function signOut() {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabaseClient.auth.signOut();
     if (error) throw error;
     currentUser = null;
 }
 
 async function getSession() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     return session;
 }
 
 // Listen for auth changes
-if (supabase) {
-    supabase.auth.onAuthStateChange((event, session) => {
+if (supabaseClient) {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
         currentUser = session?.user || null;
         console.log('Auth state changed:', event, currentUser?.email);
 
@@ -76,7 +76,7 @@ if (supabase) {
 // ============================================
 
 async function fetchExpenses() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('expenses')
         .select('*')
         .order('date', { ascending: false });
@@ -86,7 +86,7 @@ async function fetchExpenses() {
 }
 
 async function addExpenseToDb(expense) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('expenses')
         .insert({
             user_id: currentUser.id,
@@ -103,7 +103,7 @@ async function addExpenseToDb(expense) {
 }
 
 async function deleteExpenseFromDb(id) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('expenses')
         .delete()
         .eq('id', id);
@@ -116,7 +116,7 @@ async function deleteExpenseFromDb(id) {
 // ============================================
 
 async function fetchBudgets() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('budgets')
         .select('*');
 
@@ -131,7 +131,7 @@ async function fetchBudgets() {
 }
 
 async function setBudgetInDb(category, amount) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('budgets')
         .upsert({
             user_id: currentUser.id,
@@ -145,7 +145,7 @@ async function setBudgetInDb(category, amount) {
 }
 
 async function deleteBudgetFromDb(category) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('budgets')
         .delete()
         .eq('user_id', currentUser.id)
@@ -159,7 +159,7 @@ async function deleteBudgetFromDb(category) {
 // ============================================
 
 async function fetchMonthlyIncome() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('monthly_income')
         .select('*');
 
@@ -174,7 +174,7 @@ async function fetchMonthlyIncome() {
 }
 
 async function setMonthlyIncomeInDb(monthKey, amount) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('monthly_income')
         .upsert({
             user_id: currentUser.id,
@@ -188,7 +188,7 @@ async function setMonthlyIncomeInDb(monthKey, amount) {
 }
 
 async function deleteMonthlyIncomeFromDb(monthKey) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('monthly_income')
         .delete()
         .eq('user_id', currentUser.id)
