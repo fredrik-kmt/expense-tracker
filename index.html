@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Expense Tracker</h1>
+            <div class="month-selector">
+                <button id="prevMonth" class="nav-btn">&larr;</button>
+                <div class="month-display">
+                    <span id="currentMonth"></span>
+                    <button id="monthPickerBtn" class="picker-btn" title="Jump to month">&#9662;</button>
+                </div>
+                <button id="nextMonth" class="nav-btn">&rarr;</button>
+            </div>
+            <!-- Month/Year Picker Dropdown -->
+            <div id="monthPicker" class="month-picker hidden">
+                <div class="picker-header">
+                    <button id="pickerPrevYear" class="picker-nav">&larr;</button>
+                    <span id="pickerYear"></span>
+                    <button id="pickerNextYear" class="picker-nav">&rarr;</button>
+                </div>
+                <div class="picker-months" id="pickerMonths"></div>
+                <div class="picker-footer">
+                    <button id="goToToday" class="btn btn-small">Today</button>
+                </div>
+            </div>
+        </header>
+
+        <nav>
+            <button class="nav-tab active" data-section="expenses">Expenses</button>
+            <button class="nav-tab" data-section="budgets">Budgets</button>
+            <button class="nav-tab" data-section="reports">Reports</button>
+            <button class="nav-tab" data-section="history">History</button>
+            <button class="nav-tab" data-section="data">Import/Export</button>
+        </nav>
+
+        <!-- Expenses Section -->
+        <section id="expenses" class="section active">
+            <!-- Monthly Income Input -->
+            <div class="income-section">
+                <h3>Monthly Income</h3>
+                <form id="incomeForm" class="income-form">
+                    <div class="form-group">
+                        <label for="netIncome">Net income this month (kr)</label>
+                        <div class="income-input-row">
+                            <input type="number" id="netIncome" step="0.01" min="0" placeholder="e.g. 25000" required>
+                            <button type="submit" class="btn">Save</button>
+                        </div>
+                    </div>
+                </form>
+                <div id="currentIncomeDisplay" class="current-income-display"></div>
+            </div>
+
+            <h2>Add Expense</h2>
+            <form id="expenseForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <input type="text" id="description" placeholder="What did you spend on?" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="amount">Amount (kr)</label>
+                        <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <select id="category" required>
+                            <option value="food">Food & Dining</option>
+                            <option value="transport">Transport</option>
+                            <option value="utilities">Utilities</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="shopping">Shopping</option>
+                            <option value="health">Health</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="date">Date</label>
+                        <input type="date" id="date" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn">Add Expense</button>
+            </form>
+
+            <div class="expense-list" id="expenseList"></div>
+        </section>
+
+        <!-- Budgets Section -->
+        <section id="budgets" class="section">
+            <h2>Set Monthly Budgets</h2>
+            <form id="budgetForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="budgetCategory">Category</label>
+                        <select id="budgetCategory" required>
+                            <option value="food">Food & Dining</option>
+                            <option value="transport">Transport</option>
+                            <option value="utilities">Utilities</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="shopping">Shopping</option>
+                            <option value="health">Health</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="budgetAmount">Monthly Limit (kr)</label>
+                        <input type="number" id="budgetAmount" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn">Set Budget</button>
+            </form>
+
+            <div class="budget-list" id="budgetList"></div>
+        </section>
+
+        <!-- Reports Section -->
+        <section id="reports" class="section">
+            <h2>Monthly Report</h2>
+            <div class="summary-cards" id="summaryCards"></div>
+            <div class="chart-container">
+                <h3 class="chart-title">Spending by Category</h3>
+                <div class="bar-chart" id="categoryChart"></div>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section id="history" class="section">
+            <h2>Historical Overview</h2>
+            <p class="section-description">View your spending trends across months and years.</p>
+
+            <div class="history-controls">
+                <label for="historyYear">Year:</label>
+                <select id="historyYear"></select>
+            </div>
+
+            <div class="history-grid" id="historyGrid"></div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">Monthly Spending Trend</h3>
+                <div class="trend-chart" id="trendChart"></div>
+            </div>
+        </section>
+
+        <!-- Data Section -->
+        <section id="data" class="section">
+            <h2>Import / Export Data</h2>
+
+            <!-- Bank Statement Import -->
+            <div class="data-card">
+                <h3>Import Bank Statement (CSV)</h3>
+                <p>Upload your bank statement to automatically import transactions. Supports most CSV formats.</p>
+                <div class="upload-area" id="csvDropZone">
+                    <div class="upload-icon">&#128196;</div>
+                    <p>Drag & drop your CSV file here, or click to browse</p>
+                    <input type="file" id="csvFileInput" accept=".csv" hidden>
+                </div>
+                <div id="csvPreview" class="csv-preview hidden">
+                    <h4>Preview Transactions</h4>
+                    <div class="csv-mapping">
+                        <div class="form-group">
+                            <label for="csvDateCol">Date Column</label>
+                            <select id="csvDateCol"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="csvDescCol">Description Column</label>
+                            <select id="csvDescCol"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="csvAmountCol">Amount Column</label>
+                            <select id="csvAmountCol"></select>
+                        </div>
+                    </div>
+                    <div id="csvTransactions" class="csv-transactions"></div>
+                    <div class="csv-actions">
+                        <button id="importCsvBtn" class="btn btn-success">Import Selected</button>
+                        <button id="cancelCsvBtn" class="btn btn-danger">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JSON Export/Import -->
+            <div class="data-card">
+                <h3>Backup & Restore</h3>
+                <p>Export all your data as a JSON file for backup, or import a previous backup.</p>
+                <div class="data-actions">
+                    <button id="exportBtn" class="btn btn-success">Export Data</button>
+                    <div class="file-input-wrapper">
+                        <button class="btn">Import Backup</button>
+                        <input type="file" id="jsonFileInput" accept=".json">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="data-card danger">
+                <h3>Danger Zone</h3>
+                <p>Permanently delete all expense data. This cannot be undone.</p>
+                <button id="clearDataBtn" class="btn btn-danger">Clear All Data</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="csv-import.js"></script>
+</body>
+</html>
