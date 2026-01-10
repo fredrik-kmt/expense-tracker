@@ -397,7 +397,7 @@ function getCategoryOptions(selected) {
 // ============================================
 // Import Actions
 // ============================================
-function importSelectedTransactions() {
+async function importSelectedTransactions() {
     const container = document.getElementById('csvTransactions');
     const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
     const categorySelects = container.querySelectorAll('.category-select');
@@ -408,6 +408,7 @@ function importSelectedTransactions() {
     }
 
     let imported = 0;
+    let errors = 0;
     const categoryMap = {};
 
     // Build category map
@@ -415,36 +416,51 @@ function importSelectedTransactions() {
         categoryMap[select.dataset.index] = select.value;
     });
 
-    checkboxes.forEach(checkbox => {
+    // Show loading state
+    setLoading(true);
+
+    for (const checkbox of checkboxes) {
         const index = parseInt(checkbox.dataset.index);
         const row = CSVImport.parsedData[index];
 
-        if (!row) return;
+        if (!row) continue;
 
         const date = parseDate(row[CSVImport.columnMapping.date]);
         const description = row[CSVImport.columnMapping.description] || '';
         const amount = parseAmount(row[CSVImport.columnMapping.amount]);
         const category = categoryMap[index] || 'other';
 
-        if (!date || isNaN(amount)) return;
+        if (!date || isNaN(amount)) continue;
 
         const expense = {
-            id: Date.now() + imported,
             description: description.substring(0, 100),
             amount: Math.abs(amount),
             category: category,
-            date: date,
-            imported: true
+            date: date
         };
 
-        App.expenses.push(expense);
-        imported++;
-    });
+        try {
+            const savedExpense = await addExpenseToDb(expense);
+            App.expenses.unshift({
+                id: savedExpense.id,
+                ...expense
+            });
+            imported++;
+        } catch (err) {
+            console.error('Error importing expense:', err);
+            errors++;
+        }
+    }
+
+    setLoading(false);
 
     if (imported > 0) {
-        saveData();
         renderAll();
-        alert(`Successfully imported ${imported} transaction(s)!`);
+        if (errors > 0) {
+            alert(`Imported ${imported} transaction(s). ${errors} failed.`);
+        } else {
+            alert(`Successfully imported ${imported} transaction(s)!`);
+        }
         cancelCSVImport();
     } else {
         alert('No valid transactions were imported. Check your column mapping.');

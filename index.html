@@ -199,7 +199,7 @@
                     <p>Your data is automatically synced across all your devices. Any changes you make will appear on your other devices within seconds.</p>
                 </div>
 
-                <!-- Bank Statement Import -->
+                <!-- Bank Statement Import (CSV) -->
                 <div class="data-card">
                     <h3>Import Bank Statement (CSV)</h3>
                     <p>Upload your bank statement to automatically import transactions. Supports most CSV formats.</p>
@@ -232,6 +232,26 @@
                     </div>
                 </div>
 
+                <!-- Bank Statement Import (PDF) -->
+                <div class="data-card">
+                    <h3>Import Bank Statement (PDF)</h3>
+                    <p>Upload a PDF bank statement. The app will try to extract transactions automatically.</p>
+                    <div class="upload-area" id="pdfDropZone">
+                        <div class="upload-icon">&#128462;</div>
+                        <p>Drag & drop your PDF file here, or click to browse</p>
+                        <input type="file" id="pdfFileInput" accept=".pdf" hidden>
+                    </div>
+                    <div id="pdfPreview" class="csv-preview hidden">
+                        <h4>Preview Extracted Transactions</h4>
+                        <p class="preview-note">Review and adjust categories before importing:</p>
+                        <div id="pdfTransactions" class="csv-transactions"></div>
+                        <div class="csv-actions">
+                            <button id="importPdfBtn" class="btn btn-success">Import Selected</button>
+                            <button id="cancelPdfBtn" class="btn btn-danger">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- JSON Export/Import -->
                 <div class="data-card">
                     <h3>Backup & Restore</h3>
@@ -258,5 +278,6 @@
     <script src="supabase.js"></script>
     <script src="app.js"></script>
     <script src="csv-import.js"></script>
+    <script src="pdf-import.js"></script>
 </body>
 </html>
