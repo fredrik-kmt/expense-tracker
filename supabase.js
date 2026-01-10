@@ -4,20 +4,22 @@
  */
 
 const SUPABASE_URL = 'https://jtwigywkwncqvwliyyrw.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_0vhTg6Y39X6UC54fTFAD0g_SXNDmcpW';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0d2lneXdrd25jcXZ3bGl5eXJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwMjY0MTksImV4cCI6MjA4MzYwMjQxOX0.i390AR1FdO7UxgeARSm4nwO09ONL5FMiwL7DWWWp14g';
 
 // Initialize Supabase client
 let supabase = null;
 try {
-    supabase = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (window.supabase && window.supabase.createClient) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase client initialized successfully');
+    } else {
+        console.error('Supabase library not loaded');
+    }
 } catch (e) {
-    console.log('Supabase not available, using localStorage');
+    console.error('Failed to initialize Supabase:', e);
 }
 
-// For now, skip authentication - use localStorage only
-// We can enable Supabase sync later
 let currentUser = null;
-const USE_LOCAL_STORAGE = true; // Set to false when ready for cloud sync
 
 // ============================================
 // Authentication Functions
@@ -55,16 +57,19 @@ async function getSession() {
 }
 
 // Listen for auth changes
-supabase.auth.onAuthStateChange((event, session) => {
-    currentUser = session?.user || null;
+if (supabase) {
+    supabase.auth.onAuthStateChange((event, session) => {
+        currentUser = session?.user || null;
+        console.log('Auth state changed:', event, currentUser?.email);
 
-    if (event === 'SIGNED_IN') {
-        showApp();
-        loadAllData();
-    } else if (event === 'SIGNED_OUT') {
-        showAuth();
-    }
-});
+        if (event === 'SIGNED_IN') {
+            showApp();
+            loadAllData();
+        } else if (event === 'SIGNED_OUT') {
+            showAuth();
+        }
+    });
+}
 
 // ============================================
 // Database Functions - Expenses
