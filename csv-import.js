@@ -205,7 +205,7 @@ function updatePreview() {
         const date = parseDate(row[CSVImport.columnMapping.date]);
         const description = row[CSVImport.columnMapping.description] || '';
         const amount = parseAmount(row[CSVImport.columnMapping.amount]);
-        const category = suggestCategory(description);
+        const categoryInfo = suggestCategory(description);
 
         if (!date || isNaN(amount)) {
             return ''; // Skip invalid rows
@@ -213,6 +213,14 @@ function updatePreview() {
 
         const isExpense = amount < 0;
         const displayAmount = Math.abs(amount);
+
+        // If it's income (positive amount), suggest income category
+        let parent = categoryInfo.parent_category;
+        let sub = categoryInfo.subcategory;
+        if (!isExpense) {
+            parent = 'income';
+            sub = 'Other Income';
+        }
 
         return `
             <div class="csv-transaction">
@@ -222,10 +230,10 @@ function updatePreview() {
                     <div class="date">${date}</div>
                 </div>
                 <div class="amount" style="color: ${isExpense ? '#e74c3c' : '#27ae60'}">
-                    ${isExpense ? '-' : '+'}$${displayAmount.toFixed(2)}
+                    ${isExpense ? '-' : '+'}${formatCurrency(displayAmount)}
                 </div>
                 <select class="category-select" data-index="${index}">
-                    ${getCategoryOptions(isExpense ? category : 'income')}
+                    ${getCategoryOptions(parent, sub)}
                 </select>
             </div>
         `;
@@ -346,52 +354,86 @@ function parseAmount(amountStr) {
     return parseFloat(cleaned);
 }
 
+// Returns { parent_category, subcategory }
 function suggestCategory(description) {
-    if (!description) return 'other';
+    if (!description) return { parent_category: 'other', subcategory: 'Uncategorized' };
 
     const desc = description.toLowerCase();
 
-    // Category keywords
-    const categoryKeywords = {
-        food: ['restaurant', 'cafe', 'coffee', 'pizza', 'burger', 'food', 'grocery', 'supermarket',
-               'uber eats', 'doordash', 'grubhub', 'mcdonalds', 'starbucks', 'subway', 'dining',
-               'lunch', 'dinner', 'breakfast', 'bakery', 'deli'],
-        transport: ['uber', 'lyft', 'taxi', 'gas', 'fuel', 'petrol', 'parking', 'transit',
-                    'metro', 'bus', 'train', 'airline', 'flight', 'car rental', 'automotive'],
-        utilities: ['electric', 'water', 'gas bill', 'internet', 'phone', 'mobile', 'utility',
-                    'cable', 'netflix', 'spotify', 'subscription', 'insurance'],
-        entertainment: ['movie', 'cinema', 'theater', 'concert', 'game', 'steam', 'playstation',
-                        'xbox', 'ticket', 'bar', 'club', 'entertainment'],
-        shopping: ['amazon', 'walmart', 'target', 'ebay', 'shop', 'store', 'mall', 'clothing',
-                   'fashion', 'electronics', 'furniture', 'home depot', 'ikea'],
-        health: ['pharmacy', 'doctor', 'hospital', 'medical', 'dental', 'health', 'gym',
-                 'fitness', 'medicine', 'clinic', 'therapy']
+    // Keywords mapped to parent > subcategory
+    const keywords = {
+        // Food
+        'food:Groceries': ['grocery', 'supermarket', 'walmart', 'target', 'costco', 'whole foods', 'trader joe'],
+        'food:Eating Out': ['restaurant', 'cafe', 'pizza', 'burger', 'mcdonalds', 'starbucks', 'subway', 'chipotle', 'dining', 'lunch', 'dinner', 'breakfast', 'bakery', 'deli'],
+        'food:Coffee & Snacks': ['coffee', 'starbucks', 'dunkin', 'snack'],
+        'food:Bars & Nightlife': ['bar', 'pub', 'club', 'nightclub', 'cocktail', 'brewery'],
+
+        // Transport
+        'transport:Public Transport': ['transit', 'metro', 'bus', 'train', 'subway', 'amtrak'],
+        'transport:Car': ['gas', 'fuel', 'petrol', 'parking', 'automotive', 'car wash'],
+        'transport:Taxi/Uber': ['uber', 'lyft', 'taxi', 'cab'],
+
+        // Housing
+        'housing:Utilities': ['electric', 'water', 'gas bill', 'internet', 'phone', 'mobile', 'utility', 'cable', 'comcast', 'verizon', 'at&t'],
+        'housing:Insurance': ['insurance', 'geico', 'state farm', 'allstate'],
+        'housing:Rent/Mortgage': ['rent', 'mortgage', 'landlord'],
+
+        // Subscriptions
+        'subscriptions:Streaming': ['netflix', 'spotify', 'hulu', 'disney', 'hbo', 'amazon prime', 'youtube', 'apple tv'],
+        'subscriptions:Software': ['adobe', 'microsoft', 'dropbox', 'icloud', 'google storage'],
+        'subscriptions:Memberships': ['gym', 'fitness', 'membership', 'planet fitness', 'equinox'],
+
+        // Shopping
+        'shopping:Clothing': ['clothing', 'fashion', 'nordstrom', 'gap', 'old navy', 'h&m', 'zara'],
+        'shopping:Electronics': ['electronics', 'best buy', 'apple store', 'samsung'],
+        'shopping:Home & Furniture': ['furniture', 'home depot', 'ikea', 'lowes', 'bed bath', 'wayfair'],
+        'shopping:Gifts': ['gift', 'present'],
+
+        // Entertainment
+        'entertainment:Events & Tickets': ['movie', 'cinema', 'theater', 'concert', 'ticket', 'ticketmaster', 'stubhub'],
+        'entertainment:Games': ['game', 'steam', 'playstation', 'xbox', 'nintendo'],
+
+        // Health
+        'health:Pharmacy': ['pharmacy', 'cvs', 'walgreens', 'medicine', 'prescription'],
+        'health:Medical': ['doctor', 'hospital', 'medical', 'dental', 'clinic', 'therapy', 'dentist'],
+        'health:Fitness': ['fitness', 'gym', 'yoga', 'sport'],
+
+        // Travel
+        'travel:Flights': ['airline', 'flight', 'delta', 'united', 'american airlines', 'southwest'],
+        'travel:Accommodation': ['hotel', 'airbnb', 'motel', 'resort', 'hostel'],
+
+        // Income
+        'income:Salary': ['payroll', 'salary', 'wage', 'direct deposit'],
+        'income:Other Income': ['refund', 'rebate', 'cashback']
     };
 
-    for (const [category, keywords] of Object.entries(categoryKeywords)) {
-        if (keywords.some(keyword => desc.includes(keyword))) {
-            return category;
+    for (const [key, kw] of Object.entries(keywords)) {
+        if (kw.some(k => desc.includes(k))) {
+            const [parent, sub] = key.split(':');
+            return { parent_category: parent, subcategory: sub };
         }
     }
 
-    return 'other';
+    return { parent_category: 'other', subcategory: 'Uncategorized' };
 }
 
-function getCategoryOptions(selected) {
-    const categories = [
-        { value: 'food', label: 'Food & Dining' },
-        { value: 'transport', label: 'Transport' },
-        { value: 'utilities', label: 'Utilities' },
-        { value: 'entertainment', label: 'Entertainment' },
-        { value: 'shopping', label: 'Shopping' },
-        { value: 'health', label: 'Health' },
-        { value: 'income', label: 'Income' },
-        { value: 'other', label: 'Other' }
-    ];
+function getCategoryOptions(selectedParent, selectedSub) {
+    // Get all categories from categories.js
+    const categories = getCategoriesOrdered();
+    let html = '';
 
-    return categories.map(cat =>
-        `<option value="${cat.value}" ${cat.value === selected ? 'selected' : ''}>${cat.label}</option>`
-    ).join('');
+    categories.forEach(cat => {
+        // Add optgroup for each parent category
+        html += `<optgroup label="${cat.icon} ${cat.name}">`;
+        cat.subcategories.forEach(sub => {
+            const value = `${cat.key}:${sub}`;
+            const isSelected = (cat.key === selectedParent && sub === selectedSub) ? 'selected' : '';
+            html += `<option value="${value}" ${isSelected}>${sub}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+
+    return html;
 }
 
 // ============================================
@@ -411,7 +453,7 @@ async function importSelectedTransactions() {
     let errors = 0;
     const categoryMap = {};
 
-    // Build category map
+    // Build category map (value is "parent:subcategory")
     categorySelects.forEach(select => {
         categoryMap[select.dataset.index] = select.value;
     });
@@ -428,14 +470,18 @@ async function importSelectedTransactions() {
         const date = parseDate(row[CSVImport.columnMapping.date]);
         const description = row[CSVImport.columnMapping.description] || '';
         const amount = parseAmount(row[CSVImport.columnMapping.amount]);
-        const category = categoryMap[index] || 'other';
+
+        // Parse the category value (format: "parent:subcategory")
+        const categoryValue = categoryMap[index] || 'other:Uncategorized';
+        const [parent_category, subcategory] = categoryValue.split(':');
 
         if (!date || isNaN(amount)) continue;
 
         const expense = {
             description: description.substring(0, 100),
             amount: Math.abs(amount),
-            category: category,
+            parent_category: parent_category,
+            subcategory: subcategory || null,
             date: date
         };
 

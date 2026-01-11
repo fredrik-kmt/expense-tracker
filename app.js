@@ -21,19 +21,8 @@ const App = {
         symbol: 'kr',
         locale: 'da-DK',
         position: 'after'
-    },
-
-    // Category configuration
-    categories: {
-        food: { name: 'Food & Dining', color: '#e65100' },
-        transport: { name: 'Transport', color: '#1565c0' },
-        utilities: { name: 'Utilities', color: '#c2185b' },
-        entertainment: { name: 'Entertainment', color: '#7b1fa2' },
-        shopping: { name: 'Shopping', color: '#2e7d32' },
-        health: { name: 'Health', color: '#c62828' },
-        income: { name: 'Income', color: '#1b5e20' },
-        other: { name: 'Other', color: '#546e7a' }
     }
+    // Categories are now managed in categories.js
 };
 
 // ============================================
@@ -158,13 +147,29 @@ async function loadAllData() {
             fetchMonthlyIncome()
         ]);
 
-        App.expenses = expenses.map(e => ({
-            id: e.id,
-            description: e.description,
-            amount: parseFloat(e.amount),
-            category: e.category,
-            date: e.date
-        }));
+        // Map expenses, migrating old format to new if needed
+        App.expenses = expenses.map(e => {
+            // Check if expense has new format (parent_category)
+            let parentCategory = e.parent_category;
+            let subcategory = e.subcategory;
+
+            // If no parent_category, migrate from old category field
+            if (!parentCategory && e.category) {
+                const migrated = migrateCategory(e.category);
+                parentCategory = migrated.parent;
+                subcategory = migrated.subcategory;
+            }
+
+            return {
+                id: e.id,
+                description: e.description,
+                amount: parseFloat(e.amount),
+                parent_category: parentCategory || 'other',
+                subcategory: subcategory || null,
+                category: e.category, // Keep for backward compatibility
+                date: e.date
+            };
+        });
         App.budgets = budgets;
         App.monthlyIncome = income;
 
@@ -183,6 +188,12 @@ function initializeUI() {
     if (dateInput) {
         dateInput.valueAsDate = new Date();
     }
+
+    // Initialize category picker for expense form
+    initializeCategoryPicker();
+
+    // Initialize budget category selector
+    initializeBudgetCategorySelector();
 
     // Month navigation
     document.getElementById('prevMonth')?.addEventListener('click', () => changeMonth(-1));
@@ -220,6 +231,41 @@ function initializeUI() {
 
     // History year selector
     document.getElementById('historyYear')?.addEventListener('change', renderHistory);
+}
+
+// ============================================
+// Category Picker Initialization
+// ============================================
+function initializeCategoryPicker() {
+    const container = document.getElementById('expenseCategoryPicker');
+    if (!container) return;
+
+    container.innerHTML = createCategoryPickerHTML('', '', 'categoryPicker');
+}
+
+function initializeBudgetCategorySelector() {
+    const container = document.getElementById('budgetCategorySelector');
+    if (!container) return;
+
+    const categories = getBudgetCategories();
+    container.innerHTML = categories.map(cat => `
+        <button type="button" class="budget-category-btn" data-category="${cat.key}">
+            <span class="icon">${cat.icon}</span>
+            <span>${cat.name}</span>
+        </button>
+    `).join('');
+
+    // Add click handlers
+    container.querySelectorAll('.budget-category-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove selected from all
+            container.querySelectorAll('.budget-category-btn').forEach(b => b.classList.remove('selected'));
+            // Add selected to clicked
+            btn.classList.add('selected');
+            // Update hidden input
+            document.getElementById('budgetCategory').value = btn.dataset.category;
+        });
+    });
 }
 
 // ============================================
@@ -396,10 +442,20 @@ async function addExpense(e) {
     e.preventDefault();
     if (App.isLoading) return;
 
+    // Get category from the picker
+    const parentCategory = document.getElementById('categoryPicker_parent')?.value;
+    const subcategory = document.getElementById('categoryPicker_sub')?.value;
+
+    if (!parentCategory) {
+        alert('Please select a category');
+        return;
+    }
+
     const expense = {
         description: document.getElementById('description').value.trim(),
         amount: parseFloat(document.getElementById('amount').value),
-        category: document.getElementById('category').value,
+        parent_category: parentCategory,
+        subcategory: subcategory || null,
         date: document.getElementById('date').value
     };
 
@@ -413,8 +469,12 @@ async function addExpense(e) {
         renderExpenses();
         renderBudgets();
 
+        // Reset form
         e.target.reset();
         document.getElementById('date').valueAsDate = new Date();
+
+        // Reset category picker
+        initializeCategoryPicker();
     } catch (error) {
         console.error('Error adding expense:', error);
         alert('Error adding expense. Please try again.');
@@ -464,17 +524,22 @@ function renderExpenses() {
     monthExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     container.innerHTML = monthExpenses.map(exp => {
-        const isIncome = exp.category === 'income';
+        const parentCat = exp.parent_category || exp.category || 'other';
+        const isIncome = isIncomeCategory(parentCat);
+        const isSavings = isSavingsCategory(parentCat);
+        const categoryDisplay = formatCategoryDisplay(parentCat, exp.subcategory);
+        const catInfo = getCategory(parentCat);
+
         return `
             <div class="expense-item">
                 <div class="expense-info">
                     <div class="description">${escapeHtml(exp.description)}</div>
                     <div class="meta">
-                        <span class="category-tag category-${exp.category}">${App.categories[exp.category]?.name || exp.category}</span>
+                        <span class="category-tag category-tag-${parentCat}">${categoryDisplay}</span>
                         &nbsp;&bull;&nbsp; ${formatDate(exp.date)}
                     </div>
                 </div>
-                <div class="expense-amount ${isIncome ? 'income' : ''}">
+                <div class="expense-amount ${isIncome ? 'income' : ''} ${isSavings ? 'savings' : ''}">
                     ${isIncome ? '+' : '-'}${formatCurrency(exp.amount)}
                 </div>
                 <button class="delete-btn" onclick="deleteExpense(${exp.id})" title="Delete">&times;</button>
@@ -529,15 +594,18 @@ function renderBudgets() {
 
     const monthExpenses = getMonthExpenses();
 
+    // Calculate spending per parent category (excluding income and savings)
     const spending = {};
     monthExpenses.forEach(exp => {
-        if (exp.category !== 'income') {
-            spending[exp.category] = (spending[exp.category] || 0) + exp.amount;
+        const parentCat = exp.parent_category || exp.category || 'other';
+        // Only count actual expenses (not income, not savings)
+        if (isExpenseCategory(parentCat)) {
+            spending[parentCat] = (spending[parentCat] || 0) + exp.amount;
         }
     });
 
-    const categories = Object.keys(App.budgets);
-    if (categories.length === 0) {
+    const budgetCategories = Object.keys(App.budgets);
+    if (budgetCategories.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
                 <p>No budgets set.</p>
@@ -547,18 +615,21 @@ function renderBudgets() {
         return;
     }
 
-    container.innerHTML = categories.map(cat => {
+    container.innerHTML = budgetCategories.map(cat => {
         const limit = App.budgets[cat];
         const spent = spending[cat] || 0;
         const percentage = Math.min((spent / limit) * 100, 100);
         const isOver = spent > limit;
-        const color = isOver ? '#e74c3c' : (percentage > 80 ? '#f39c12' : '#27ae60');
+        const color = isOver ? '#ef4444' : (percentage > 80 ? '#f59e0b' : '#10b981');
+        const catInfo = getCategory(cat);
+        const catName = catInfo ? catInfo.name : getCategoryName(cat);
+        const catIcon = catInfo ? catInfo.icon : '';
 
         return `
             <div class="budget-item">
                 <div class="budget-info">
                     <div class="category-name">
-                        <span class="category-tag category-${cat}">${App.categories[cat]?.name || cat}</span>
+                        <span class="category-tag category-tag-${cat}">${catIcon} ${catName}</span>
                     </div>
                     <div class="budget-bar">
                         <div class="budget-bar-fill" style="width: ${percentage}%; background: ${color}"></div>
@@ -582,94 +653,125 @@ function renderReports() {
     const monthKey = getCurrentMonthKey();
     const netIncome = getMonthlyIncome(monthKey);
 
-    const expenseTransactions = monthExpenses.filter(e => e.category !== 'income');
-    const totalSpent = expenseTransactions.reduce((sum, exp) => sum + exp.amount, 0);
+    // Categorize transactions by type
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    let savingsTotal = 0;
+    const savingsBreakdown = {};
+    const expensesByCategory = {};
+
+    monthExpenses.forEach(exp => {
+        const parentCat = exp.parent_category || exp.category || 'other';
+
+        if (isIncomeCategory(parentCat)) {
+            incomeTotal += exp.amount;
+        } else if (isSavingsCategory(parentCat)) {
+            savingsTotal += exp.amount;
+            // Track savings by subcategory
+            const subKey = exp.subcategory || 'Other Savings';
+            savingsBreakdown[subKey] = (savingsBreakdown[subKey] || 0) + exp.amount;
+        } else {
+            expenseTotal += exp.amount;
+            // Track expenses by parent category
+            expensesByCategory[parentCat] = (expensesByCategory[parentCat] || 0) + exp.amount;
+        }
+    });
+
+    // Use manually entered income if available, otherwise use income from transactions
+    const totalIncome = netIncome > 0 ? netIncome : incomeTotal;
+    const remaining = totalIncome - expenseTotal - savingsTotal;
     const totalBudget = Object.values(App.budgets).reduce((sum, b) => sum + b, 0);
-    const budgetRemaining = totalBudget - totalSpent;
-    const savingsFromIncome = netIncome > 0 ? netIncome - totalSpent : 0;
-    const savingsPercentage = netIncome > 0 ? ((savingsFromIncome / netIncome) * 100).toFixed(1) : 0;
+    const budgetRemaining = totalBudget - expenseTotal;
 
+    // Render Money Flow Summary
+    const moneyFlowContainer = document.getElementById('moneyFlowSummary');
+    if (moneyFlowContainer) {
+        moneyFlowContainer.innerHTML = `
+            <div class="money-flow-item income">
+                <h4>Income</h4>
+                <div class="value">${formatCurrency(totalIncome, false)}</div>
+            </div>
+            <div class="money-flow-item expenses">
+                <h4>Expenses</h4>
+                <div class="value">${formatCurrency(expenseTotal, false)}</div>
+            </div>
+            <div class="money-flow-item savings">
+                <h4>Savings</h4>
+                <div class="value">${formatCurrency(savingsTotal, false)}</div>
+            </div>
+            <div class="money-flow-item remaining">
+                <h4>Remaining</h4>
+                <div class="value">${formatCurrency(remaining, false)}</div>
+            </div>
+        `;
+    }
+
+    // Render Summary Cards
     const cardsContainer = document.getElementById('summaryCards');
-    if (!cardsContainer) return;
-
-    cardsContainer.innerHTML = `
-        <div class="summary-card">
-            <h3>Monthly Income</h3>
-            <div class="value">${netIncome > 0 ? formatCurrency(netIncome, false) : 'Not set'}</div>
-        </div>
-        <div class="summary-card warning">
-            <h3>Total Spent</h3>
-            <div class="value">${formatCurrency(totalSpent, false)}</div>
-        </div>
-        <div class="summary-card ${savingsFromIncome >= 0 ? 'success' : 'warning'}">
-            <h3>${savingsFromIncome >= 0 ? 'Savings' : 'Overspent'}</h3>
-            <div class="value">${formatCurrency(Math.abs(savingsFromIncome), false)}</div>
-            ${netIncome > 0 ? `<div class="subvalue">${savingsPercentage}% of income</div>` : ''}
-        </div>
-        <div class="summary-card ${budgetRemaining >= 0 ? 'success' : 'warning'}">
-            <h3>${budgetRemaining >= 0 ? 'Budget Remaining' : 'Over Budget'}</h3>
-            <div class="value">${formatCurrency(Math.abs(budgetRemaining), false)}</div>
-        </div>
-    `;
+    if (cardsContainer) {
+        cardsContainer.innerHTML = `
+            <div class="summary-card ${budgetRemaining >= 0 ? 'success' : 'warning'}">
+                <h3>${budgetRemaining >= 0 ? 'Budget Remaining' : 'Over Budget'}</h3>
+                <div class="value">${formatCurrency(Math.abs(budgetRemaining), false)}</div>
+            </div>
+        `;
+    }
 
     // Remove old comparison
     const oldComparison = document.querySelector('.income-vs-expense');
     if (oldComparison) oldComparison.remove();
 
-    if (netIncome > 0) {
-        const incomeVsExpenseHtml = `
-            <div class="income-vs-expense">
-                <h3 class="chart-title">Income vs. Expenses</h3>
-                <div class="comparison-bar">
-                    <div class="comparison-income" style="width: 100%">
-                        <span>Income: ${formatCurrency(netIncome, false)}</span>
-                    </div>
-                </div>
-                <div class="comparison-bar">
-                    <div class="comparison-expense" style="width: ${Math.min((totalSpent / netIncome) * 100, 100)}%">
-                        <span>Expenses: ${formatCurrency(totalSpent, false)}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-        cardsContainer.insertAdjacentHTML('afterend', incomeVsExpenseHtml);
-    }
-
-    // Category Chart
+    // Category Chart (expenses only, not savings)
     const chartContainer = document.getElementById('categoryChart');
-    if (!chartContainer) return;
+    if (chartContainer) {
+        const categories = Object.entries(expensesByCategory).sort((a, b) => b[1] - a[1]);
+        const maxSpending = Math.max(...Object.values(expensesByCategory), 1);
 
-    const spending = {};
-    expenseTransactions.forEach(exp => {
-        spending[exp.category] = (spending[exp.category] || 0) + exp.amount;
-    });
-
-    const categories = Object.entries(spending).sort((a, b) => b[1] - a[1]);
-    const maxSpending = Math.max(...Object.values(spending), 1);
-
-    if (categories.length === 0) {
-        chartContainer.innerHTML = `
-            <div class="empty-state">
-                <p>No spending data to display for this month.</p>
-            </div>
-        `;
-        return;
+        if (categories.length === 0) {
+            chartContainer.innerHTML = `
+                <div class="empty-state">
+                    <p>No spending data to display for this month.</p>
+                </div>
+            `;
+        } else {
+            chartContainer.innerHTML = categories.map(([cat, amount]) => {
+                const percentage = (amount / maxSpending) * 100;
+                const catInfo = getCategory(cat);
+                const color = catInfo ? catInfo.color : '#6b7280';
+                const name = catInfo ? catInfo.name : getCategoryName(cat);
+                const icon = catInfo ? catInfo.icon : '';
+                return `
+                    <div class="bar-row">
+                        <div class="bar-label">${icon} ${name}</div>
+                        <div class="bar-container">
+                            <div class="bar" style="width: ${Math.max(percentage, 10)}%; background: ${color}">
+                                ${formatCurrency(amount)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
     }
 
-    chartContainer.innerHTML = categories.map(([cat, amount]) => {
-        const percentage = (amount / maxSpending) * 100;
-        const color = App.categories[cat]?.color || '#546e7a';
-        return `
-            <div class="bar-row">
-                <div class="bar-label">${App.categories[cat]?.name || cat}</div>
-                <div class="bar-container">
-                    <div class="bar" style="width: ${Math.max(percentage, 10)}%; background: ${color}">
-                        ${formatCurrency(amount)}
+    // Savings Breakdown Section
+    const savingsSection = document.getElementById('savingsSection');
+    const savingsBreakdownContainer = document.getElementById('savingsBreakdown');
+    if (savingsSection && savingsBreakdownContainer) {
+        if (savingsTotal > 0) {
+            savingsSection.classList.remove('hidden');
+            savingsBreakdownContainer.innerHTML = Object.entries(savingsBreakdown)
+                .sort((a, b) => b[1] - a[1])
+                .map(([name, amount]) => `
+                    <div class="savings-item">
+                        <span class="name">${name}</span>
+                        <span class="amount">${formatCurrency(amount)}</span>
                     </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+                `).join('');
+        } else {
+            savingsSection.classList.add('hidden');
+        }
+    }
 }
 
 // ============================================
@@ -718,8 +820,12 @@ function renderHistoryGrid(year) {
     const cards = monthNames.map((name, index) => {
         const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
         const monthExpenses = getMonthExpenses(monthKey);
+        // Only count actual expenses (not income, not savings)
         const total = monthExpenses
-            .filter(e => e.category !== 'income')
+            .filter(e => {
+                const parentCat = e.parent_category || e.category || 'other';
+                return isExpenseCategory(parentCat);
+            })
             .reduce((sum, e) => sum + e.amount, 0);
         const isActive = monthKey === currentMonthKey;
 
@@ -745,8 +851,12 @@ function renderTrendChart(year) {
     const monthlySpending = monthNames.map((_, index) => {
         const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
         const monthExpenses = getMonthExpenses(monthKey);
+        // Only count actual expenses (not income, not savings)
         return monthExpenses
-            .filter(e => e.category !== 'income')
+            .filter(e => {
+                const parentCat = e.parent_category || e.category || 'other';
+                return isExpenseCategory(parentCat);
+            })
             .reduce((sum, e) => sum + e.amount, 0);
     });
 

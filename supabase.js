@@ -86,15 +86,31 @@ async function fetchExpenses() {
 }
 
 async function addExpenseToDb(expense) {
+    // Support both old (category) and new (parent_category + subcategory) format
+    const insertData = {
+        user_id: currentUser.id,
+        description: expense.description,
+        amount: expense.amount,
+        date: expense.date
+    };
+
+    // Use new hierarchical category structure
+    if (expense.parent_category) {
+        insertData.parent_category = expense.parent_category;
+        insertData.subcategory = expense.subcategory || null;
+        // Also set old category field for backward compatibility
+        insertData.category = expense.parent_category;
+    } else if (expense.category) {
+        // Old format - migrate to new structure
+        const migrated = migrateCategory(expense.category);
+        insertData.parent_category = migrated.parent;
+        insertData.subcategory = migrated.subcategory;
+        insertData.category = expense.category;
+    }
+
     const { data, error } = await supabaseClient
         .from('expenses')
-        .insert({
-            user_id: currentUser.id,
-            description: expense.description,
-            amount: expense.amount,
-            category: expense.category,
-            date: expense.date
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -123,19 +139,23 @@ async function fetchBudgets() {
     if (error) throw error;
 
     // Convert to object format
+    // Use parent_category if available, fall back to category for old data
     const budgets = {};
     (data || []).forEach(b => {
-        budgets[b.category] = b.amount;
+        const key = b.parent_category || b.category;
+        budgets[key] = b.amount;
     });
     return budgets;
 }
 
-async function setBudgetInDb(category, amount) {
+async function setBudgetInDb(parentCategory, amount) {
+    // Budgets are now set per parent category only
     const { error } = await supabaseClient
         .from('budgets')
         .upsert({
             user_id: currentUser.id,
-            category,
+            category: parentCategory,  // Keep for backward compatibility
+            parent_category: parentCategory,
             amount
         }, {
             onConflict: 'user_id,category'
@@ -144,12 +164,12 @@ async function setBudgetInDb(category, amount) {
     if (error) throw error;
 }
 
-async function deleteBudgetFromDb(category) {
+async function deleteBudgetFromDb(parentCategory) {
     const { error } = await supabaseClient
         .from('budgets')
         .delete()
         .eq('user_id', currentUser.id)
-        .eq('category', category);
+        .eq('category', parentCategory);
 
     if (error) throw error;
 }

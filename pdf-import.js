@@ -219,13 +219,14 @@ function extractTransactionsFromText(text) {
         const amount = validAmounts[0];
 
         // Suggest category
-        const category = suggestPDFCategory(description);
+        const categoryInfo = suggestPDFCategory(description);
 
         transactions.push({
             date,
             description,
             amount,
-            category
+            parent_category: categoryInfo.parent_category,
+            subcategory: categoryInfo.subcategory
         });
     }
 
@@ -298,24 +299,56 @@ function parsePDFDate(value) {
 }
 
 // Suggest category based on description
+// Returns { parent_category, subcategory }
 function suggestPDFCategory(description) {
     const desc = description.toLowerCase();
 
+    // Keywords mapped to parent > subcategory
     const keywords = {
-        food: ['restaurant', 'cafe', 'coffee', 'grocery', 'supermarket', 'food', 'netto', 'fotex', 'rema', 'lidl', 'aldi', 'irma', 'meny', 'bilka', 'kvickly', 'pizza', 'burger', 'sushi', 'kebab', 'bakery', '7-eleven', 'circle k'],
-        transport: ['uber', 'taxi', 'bus', 'train', 'dsb', 'rejsekort', 'benzin', 'parking', 'shell', 'ok', 'q8', 'circle k', 'metro', 'bil', 'tog'],
-        utilities: ['electric', 'water', 'internet', 'phone', 'rent', 'insurance', 'el', 'vand', 'varme', 'husleje', 'forsikring', 'tdc', 'yousee', 'telenor', 'telia'],
-        entertainment: ['netflix', 'spotify', 'hbo', 'movie', 'cinema', 'game', 'steam', 'playstation', 'biograf', 'koncert', 'ticket'],
-        shopping: ['amazon', 'store', 'shop', 'h&m', 'zara', 'ikea', 'magasin', 'elgiganten', 'power', 'normal', 'flying tiger', 'jysk'],
-        health: ['pharmacy', 'doctor', 'hospital', 'gym', 'fitness', 'apotek', 'tandlage', 'lage', 'fitness world', 'sats']
+        // Food
+        'food:Groceries': ['grocery', 'supermarket', 'netto', 'fotex', 'rema', 'lidl', 'aldi', 'irma', 'meny', 'bilka', 'kvickly'],
+        'food:Eating Out': ['restaurant', 'cafe', 'pizza', 'burger', 'sushi', 'kebab', 'bakery', 'mcdonalds', 'burger king', 'subway', 'spisested'],
+        'food:Coffee & Snacks': ['coffee', 'starbucks', '7-eleven', 'circle k', 'espresso'],
+        'food:Bars & Nightlife': ['bar', 'pub', 'club', 'nightlife', 'cocktail'],
+
+        // Transport
+        'transport:Public Transport': ['bus', 'train', 'dsb', 'rejsekort', 'metro', 'tog', 's-tog'],
+        'transport:Car': ['benzin', 'parking', 'shell', 'ok', 'q8', 'parkering', 'bil'],
+        'transport:Taxi/Uber': ['uber', 'taxi', 'bolt', 'lyft'],
+
+        // Housing
+        'housing:Utilities': ['electric', 'water', 'internet', 'phone', 'el', 'vand', 'varme', 'tdc', 'yousee', 'telenor', 'telia'],
+        'housing:Rent/Mortgage': ['rent', 'husleje', 'mortgage', 'bolig'],
+        'housing:Insurance': ['insurance', 'forsikring'],
+
+        // Subscriptions
+        'subscriptions:Streaming': ['netflix', 'spotify', 'hbo', 'disney', 'youtube', 'apple music', 'viaplay'],
+        'subscriptions:Software': ['adobe', 'microsoft', 'dropbox', 'icloud'],
+        'subscriptions:Memberships': ['gym', 'fitness world', 'sats', 'medlemskab'],
+
+        // Shopping
+        'shopping:Clothing': ['h&m', 'zara', 'uniqlo', 'cos', 'weekday', 'only', 'vero moda'],
+        'shopping:Electronics': ['elgiganten', 'power', 'apple', 'samsung', 'electronic'],
+        'shopping:Home & Furniture': ['ikea', 'jysk', 'normal', 'flying tiger', 'sostren grene'],
+
+        // Entertainment
+        'entertainment:Events & Tickets': ['ticket', 'biograf', 'koncert', 'movie', 'cinema', 'billetto'],
+        'entertainment:Games': ['steam', 'playstation', 'xbox', 'nintendo', 'game'],
+
+        // Health
+        'health:Pharmacy': ['pharmacy', 'apotek', 'medicin', 'medicine'],
+        'health:Medical': ['doctor', 'hospital', 'lage', 'tandlage', 'clinic'],
+        'health:Fitness': ['fitness', 'gym', 'sport', 'yoga']
     };
 
-    for (const [category, kw] of Object.entries(keywords)) {
+    for (const [key, kw] of Object.entries(keywords)) {
         if (kw.some(k => desc.includes(k))) {
-            return category;
+            const [parent, sub] = key.split(':');
+            return { parent_category: parent, subcategory: sub };
         }
     }
-    return 'other';
+
+    return { parent_category: 'other', subcategory: 'Uncategorized' };
 }
 
 // ============================================
@@ -333,6 +366,7 @@ function showPDFPreview() {
 
     if (container) {
         container.innerHTML = PDFImport.transactions.map((t, index) => {
+            const categoryValue = `${t.parent_category}:${t.subcategory || ''}`;
             return `
                 <div class="csv-transaction" data-index="${index}">
                     <input type="checkbox" checked data-index="${index}">
@@ -344,7 +378,7 @@ function showPDFPreview() {
                         -${formatCurrency(t.amount)}
                     </div>
                     <select class="category-select" data-index="${index}">
-                        ${getPDFCategoryOptions(t.category)}
+                        ${getPDFCategoryOptions(t.parent_category, t.subcategory)}
                     </select>
                 </div>
             `;
@@ -352,20 +386,23 @@ function showPDFPreview() {
     }
 }
 
-function getPDFCategoryOptions(selected) {
-    const categories = [
-        { value: 'food', label: 'Food & Dining' },
-        { value: 'transport', label: 'Transport' },
-        { value: 'utilities', label: 'Utilities' },
-        { value: 'entertainment', label: 'Entertainment' },
-        { value: 'shopping', label: 'Shopping' },
-        { value: 'health', label: 'Health' },
-        { value: 'other', label: 'Other' }
-    ];
+function getPDFCategoryOptions(selectedParent, selectedSub) {
+    // Get all categories from categories.js
+    const categories = getCategoriesOrdered();
+    let html = '';
 
-    return categories.map(cat =>
-        `<option value="${cat.value}" ${cat.value === selected ? 'selected' : ''}>${cat.label}</option>`
-    ).join('');
+    categories.forEach(cat => {
+        // Add optgroup for each parent category
+        html += `<optgroup label="${cat.icon} ${cat.name}">`;
+        cat.subcategories.forEach(sub => {
+            const value = `${cat.key}:${sub}`;
+            const isSelected = (cat.key === selectedParent && sub === selectedSub) ? 'selected' : '';
+            html += `<option value="${value}" ${isSelected}>${sub}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+
+    return html;
 }
 
 // ============================================
@@ -387,7 +424,7 @@ async function importPDFSelectedTransactions() {
     let errors = 0;
     const categoryMap = {};
 
-    // Build category map
+    // Build category map (value is "parent:subcategory")
     categorySelects.forEach(select => {
         categoryMap[select.dataset.index] = select.value;
     });
@@ -400,12 +437,15 @@ async function importPDFSelectedTransactions() {
         const transaction = PDFImport.transactions[index];
         if (!transaction) continue;
 
-        const category = categoryMap[index] || transaction.category;
+        // Parse the category value (format: "parent:subcategory")
+        const categoryValue = categoryMap[index] || `${transaction.parent_category}:${transaction.subcategory || ''}`;
+        const [parent_category, subcategory] = categoryValue.split(':');
 
         const expense = {
             description: transaction.description.substring(0, 100),
             amount: transaction.amount,
-            category: category,
+            parent_category: parent_category,
+            subcategory: subcategory || null,
             date: transaction.date
         };
 

@@ -111,16 +111,8 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="category">Category</label>
-                            <select id="category" required>
-                                <option value="food">Food & Dining</option>
-                                <option value="transport">Transport</option>
-                                <option value="utilities">Utilities</option>
-                                <option value="entertainment">Entertainment</option>
-                                <option value="shopping">Shopping</option>
-                                <option value="health">Health</option>
-                                <option value="other">Other</option>
-                            </select>
+                            <label>Category</label>
+                            <div id="expenseCategoryPicker"></div>
                         </div>
                         <div class="form-group">
                             <label for="date">Date</label>
@@ -136,24 +128,16 @@
             <!-- Budgets Section -->
             <section id="budgets" class="section">
                 <h2>Set Monthly Budgets</h2>
+                <p class="section-description">Set spending limits per category. Budgets apply to the parent category (all subcategories combined).</p>
                 <form id="budgetForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="budgetCategory">Category</label>
-                            <select id="budgetCategory" required>
-                                <option value="food">Food & Dining</option>
-                                <option value="transport">Transport</option>
-                                <option value="utilities">Utilities</option>
-                                <option value="entertainment">Entertainment</option>
-                                <option value="shopping">Shopping</option>
-                                <option value="health">Health</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="budgetAmount">Monthly Limit (kr)</label>
-                            <input type="number" id="budgetAmount" step="0.01" min="0" placeholder="0.00" required>
-                        </div>
+                    <div class="form-group">
+                        <label>Select Category</label>
+                        <div id="budgetCategorySelector" class="budget-category-select"></div>
+                        <input type="hidden" id="budgetCategory" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="budgetAmount">Monthly Limit (kr)</label>
+                        <input type="number" id="budgetAmount" step="0.01" min="0" placeholder="0.00" required>
                     </div>
                     <button type="submit" class="btn">Set Budget</button>
                 </form>
@@ -164,10 +148,23 @@
             <!-- Reports Section -->
             <section id="reports" class="section">
                 <h2>Monthly Report</h2>
+
+                <!-- Money Flow Summary -->
+                <div id="moneyFlowSummary" class="money-flow-summary"></div>
+
+                <!-- Summary Cards -->
                 <div class="summary-cards" id="summaryCards"></div>
+
+                <!-- Spending by Category -->
                 <div class="chart-container">
                     <h3 class="chart-title">Spending by Category</h3>
                     <div class="bar-chart" id="categoryChart"></div>
+                </div>
+
+                <!-- Savings Breakdown -->
+                <div id="savingsSection" class="report-section hidden">
+                    <h3>Savings This Month</h3>
+                    <div id="savingsBreakdown" class="savings-breakdown"></div>
                 </div>
             </section>
 
@@ -276,6 +273,7 @@
     </div>
 
     <script src="supabase.js"></script>
+    <script src="categories.js"></script>
     <script src="app.js"></script>
     <script src="csv-import.js"></script>
     <script src="pdf-import.js"></script>
