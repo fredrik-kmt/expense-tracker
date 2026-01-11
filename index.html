@@ -82,24 +82,59 @@
 
             <!-- Expenses Section -->
             <section id="expenses" class="section active">
-                <!-- Monthly Income Input -->
-                <div class="income-section">
-                    <h3>Monthly Income</h3>
-                    <form id="incomeForm" class="income-form">
+
+                <!-- Add Income -->
+                <div class="add-section add-income-section">
+                    <h3>Add Income</h3>
+                    <form id="incomeForm" class="inline-form">
                         <div class="form-group">
-                            <label for="netIncome">Net income this month (kr)</label>
-                            <div class="income-input-row">
-                                <input type="number" id="netIncome" step="0.01" min="0" placeholder="e.g. 25000" required>
-                                <button type="submit" class="btn">Save</button>
-                            </div>
+                            <label for="incomeDescription">Description</label>
+                            <input type="text" id="incomeDescription" placeholder="e.g. Salary, Freelance work" required>
                         </div>
+                        <div class="form-group">
+                            <label for="incomeAmount">Amount (kr)</label>
+                            <input type="number" id="incomeAmount" step="0.01" min="0" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <div id="incomeCategoryPicker"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="incomeDate">Date</label>
+                            <input type="date" id="incomeDate" required>
+                        </div>
+                        <button type="submit" class="btn btn-income">Add Income</button>
                     </form>
-                    <div id="currentIncomeDisplay" class="current-income-display"></div>
                 </div>
 
-                <h2>Add Expense</h2>
-                <form id="expenseForm">
-                    <div class="form-row">
+                <!-- Add Savings -->
+                <div class="add-section add-savings-section">
+                    <h3>Add Savings</h3>
+                    <form id="savingsForm" class="inline-form">
+                        <div class="form-group">
+                            <label for="savingsDescription">Description</label>
+                            <input type="text" id="savingsDescription" placeholder="e.g. Emergency fund, ETF purchase" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="savingsAmount">Amount (kr)</label>
+                            <input type="number" id="savingsAmount" step="0.01" min="0" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <div id="savingsCategoryPicker"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="savingsDate">Date</label>
+                            <input type="date" id="savingsDate" required>
+                        </div>
+                        <button type="submit" class="btn btn-savings">Add Savings</button>
+                    </form>
+                </div>
+
+                <!-- Add Expense -->
+                <div class="add-section add-expense-section">
+                    <h3>Add Expense</h3>
+                    <form id="expenseForm" class="inline-form">
                         <div class="form-group">
                             <label for="description">Description</label>
                             <input type="text" id="description" placeholder="What did you spend on?" required>
@@ -108,8 +143,6 @@
                             <label for="amount">Amount (kr)</label>
                             <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required>
                         </div>
-                    </div>
-                    <div class="form-row">
                         <div class="form-group">
                             <label>Category</label>
                             <div id="expenseCategoryPicker"></div>
@@ -118,9 +151,9 @@
                             <label for="date">Date</label>
                             <input type="date" id="date" required>
                         </div>
-                    </div>
-                    <button type="submit" class="btn">Add Expense</button>
-                </form>
+                        <button type="submit" class="btn btn-expense">Add Expense</button>
+                    </form>
+                </div>
 
                 <div class="expense-list" id="expenseList"></div>
             </section>

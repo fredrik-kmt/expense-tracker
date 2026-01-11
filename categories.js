@@ -203,10 +203,60 @@ function getBudgetCategories() {
 }
 
 /**
- * Create the HTML for the category picker dropdown
+ * Get only income categories
  */
-function createCategoryPickerHTML(selectedParent = '', selectedSub = '', pickerId = 'categoryPicker') {
-    const categories = getCategoriesOrdered();
+function getIncomeCategories() {
+    return [{
+        key: 'income',
+        ...DEFAULT_CATEGORIES['income']
+    }];
+}
+
+/**
+ * Get only savings categories
+ */
+function getSavingsCategories() {
+    return [{
+        key: 'savings',
+        ...DEFAULT_CATEGORIES['savings']
+    }];
+}
+
+/**
+ * Get only expense categories (not income, not savings)
+ */
+function getExpenseCategories() {
+    return CATEGORY_ORDER
+        .filter(key => key !== 'income' && key !== 'savings')
+        .map(key => ({
+            key,
+            ...DEFAULT_CATEGORIES[key]
+        }));
+}
+
+/**
+ * Create the HTML for the category picker dropdown
+ * @param {string} selectedParent - Pre-selected parent category
+ * @param {string} selectedSub - Pre-selected subcategory
+ * @param {string} pickerId - Unique ID for this picker
+ * @param {string} filter - 'all', 'expenses', 'income', 'savings'
+ */
+function createCategoryPickerHTML(selectedParent = '', selectedSub = '', pickerId = 'categoryPicker', filter = 'all') {
+    let categories;
+
+    switch (filter) {
+        case 'expenses':
+            categories = getExpenseCategories();
+            break;
+        case 'income':
+            categories = getIncomeCategories();
+            break;
+        case 'savings':
+            categories = getSavingsCategories();
+            break;
+        default:
+            categories = getCategoriesOrdered();
+    }
 
     let html = `
         <div class="category-picker" id="${pickerId}">
@@ -323,6 +373,9 @@ window.isSavingsCategory = isSavingsCategory;
 window.isExpenseCategory = isExpenseCategory;
 window.migrateCategory = migrateCategory;
 window.getBudgetCategories = getBudgetCategories;
+window.getIncomeCategories = getIncomeCategories;
+window.getSavingsCategories = getSavingsCategories;
+window.getExpenseCategories = getExpenseCategories;
 window.createCategoryPickerHTML = createCategoryPickerHTML;
 window.toggleCategoryPicker = toggleCategoryPicker;
 window.selectCategory = selectCategory;

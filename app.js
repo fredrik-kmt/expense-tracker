@@ -222,7 +222,8 @@ function initializeUI() {
     // Forms
     document.getElementById('expenseForm')?.addEventListener('submit', addExpense);
     document.getElementById('budgetForm')?.addEventListener('submit', setBudget);
-    document.getElementById('incomeForm')?.addEventListener('submit', setMonthlyIncome);
+    document.getElementById('incomeForm')?.addEventListener('submit', addIncome);
+    document.getElementById('savingsForm')?.addEventListener('submit', addSavings);
 
     // Data management
     document.getElementById('exportBtn')?.addEventListener('click', exportData);
@@ -237,10 +238,33 @@ function initializeUI() {
 // Category Picker Initialization
 // ============================================
 function initializeCategoryPicker() {
-    const container = document.getElementById('expenseCategoryPicker');
-    if (!container) return;
+    // Income category picker (only income subcategories)
+    const incomeContainer = document.getElementById('incomeCategoryPicker');
+    if (incomeContainer) {
+        incomeContainer.innerHTML = createCategoryPickerHTML('income', 'Salary', 'incomeCategoryPicker', 'income');
+    }
 
-    container.innerHTML = createCategoryPickerHTML('', '', 'categoryPicker');
+    // Savings category picker (only savings subcategories)
+    const savingsContainer = document.getElementById('savingsCategoryPicker');
+    if (savingsContainer) {
+        savingsContainer.innerHTML = createCategoryPickerHTML('savings', 'Other Savings', 'savingsCategoryPicker', 'savings');
+    }
+
+    // Expense category picker (only expense categories, no income/savings)
+    const expenseContainer = document.getElementById('expenseCategoryPicker');
+    if (expenseContainer) {
+        expenseContainer.innerHTML = createCategoryPickerHTML('', '', 'categoryPicker', 'expenses');
+    }
+
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    const incomeDate = document.getElementById('incomeDate');
+    const savingsDate = document.getElementById('savingsDate');
+    const expenseDate = document.getElementById('date');
+
+    if (incomeDate) incomeDate.value = today;
+    if (savingsDate) savingsDate.value = today;
+    if (expenseDate) expenseDate.value = today;
 }
 
 function initializeBudgetCategorySelector() {
@@ -436,7 +460,87 @@ async function deleteMonthlyIncomeHandler() {
 }
 
 // ============================================
-// Expenses
+// Add Income
+// ============================================
+async function addIncome(e) {
+    e.preventDefault();
+    if (App.isLoading) return;
+
+    const parentCategory = document.getElementById('incomeCategoryPicker_parent')?.value || 'income';
+    const subcategory = document.getElementById('incomeCategoryPicker_sub')?.value || 'Salary';
+
+    const income = {
+        description: document.getElementById('incomeDescription').value.trim(),
+        amount: parseFloat(document.getElementById('incomeAmount').value),
+        parent_category: parentCategory,
+        subcategory: subcategory,
+        date: document.getElementById('incomeDate').value
+    };
+
+    setLoading(true);
+    try {
+        const savedIncome = await addExpenseToDb(income);
+        App.expenses.unshift({
+            id: savedIncome.id,
+            ...income
+        });
+        renderExpenses();
+        renderReports();
+
+        // Reset form
+        document.getElementById('incomeDescription').value = '';
+        document.getElementById('incomeAmount').value = '';
+        document.getElementById('incomeDate').value = new Date().toISOString().split('T')[0];
+    } catch (error) {
+        console.error('Error adding income:', error);
+        alert('Error adding income. Please try again.');
+    } finally {
+        setLoading(false);
+    }
+}
+
+// ============================================
+// Add Savings
+// ============================================
+async function addSavings(e) {
+    e.preventDefault();
+    if (App.isLoading) return;
+
+    const parentCategory = document.getElementById('savingsCategoryPicker_parent')?.value || 'savings';
+    const subcategory = document.getElementById('savingsCategoryPicker_sub')?.value || 'Other Savings';
+
+    const savings = {
+        description: document.getElementById('savingsDescription').value.trim(),
+        amount: parseFloat(document.getElementById('savingsAmount').value),
+        parent_category: parentCategory,
+        subcategory: subcategory,
+        date: document.getElementById('savingsDate').value
+    };
+
+    setLoading(true);
+    try {
+        const savedSavings = await addExpenseToDb(savings);
+        App.expenses.unshift({
+            id: savedSavings.id,
+            ...savings
+        });
+        renderExpenses();
+        renderReports();
+
+        // Reset form
+        document.getElementById('savingsDescription').value = '';
+        document.getElementById('savingsAmount').value = '';
+        document.getElementById('savingsDate').value = new Date().toISOString().split('T')[0];
+    } catch (error) {
+        console.error('Error adding savings:', error);
+        alert('Error adding savings. Please try again.');
+    } finally {
+        setLoading(false);
+    }
+}
+
+// ============================================
+// Add Expense
 // ============================================
 async function addExpense(e) {
     e.preventDefault();
@@ -470,11 +574,15 @@ async function addExpense(e) {
         renderBudgets();
 
         // Reset form
-        e.target.reset();
-        document.getElementById('date').valueAsDate = new Date();
+        document.getElementById('description').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-        // Reset category picker
-        initializeCategoryPicker();
+        // Reset category picker to empty
+        const expenseContainer = document.getElementById('expenseCategoryPicker');
+        if (expenseContainer) {
+            expenseContainer.innerHTML = createCategoryPickerHTML('', '', 'categoryPicker', 'expenses');
+        }
     } catch (error) {
         console.error('Error adding expense:', error);
         alert('Error adding expense. Please try again.');
@@ -1016,7 +1124,6 @@ function renderAll() {
     updateMonthDisplay();
     renderExpenses();
     renderBudgets();
-    renderIncomeDisplay();
 
     if (document.getElementById('reports')?.classList.contains('active')) {
         renderReports();
@@ -1043,6 +1150,7 @@ function escapeHtml(text) {
 // Make functions available globally
 window.deleteExpense = deleteExpense;
 window.deleteBudget = deleteBudget;
-window.deleteMonthlyIncomeHandler = deleteMonthlyIncomeHandler;
 window.selectMonth = selectMonth;
 window.jumpToMonth = jumpToMonth;
+window.addIncome = addIncome;
+window.addSavings = addSavings;
