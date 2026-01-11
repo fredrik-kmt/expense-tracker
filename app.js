@@ -61,6 +61,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (session) {
             currentUser = session.user;
             showApp();
+            // Load settings first (to define "Current Month")
+            await loadSettings();
             await loadAllData();
         } else {
             showAuth();
@@ -204,6 +206,9 @@ function initializeUI() {
     document.getElementById('pickerPrevYear')?.addEventListener('click', () => changePickerYear(-1));
     document.getElementById('pickerNextYear')?.addEventListener('click', () => changePickerYear(1));
     document.getElementById('goToToday')?.addEventListener('click', goToToday);
+
+    // Settings
+    document.getElementById('openSettingsBtn')?.addEventListener('click', openSettingsModal);
 
     // Close picker when clicking outside
     document.addEventListener('click', (e) => {
@@ -759,21 +764,24 @@ function renderReports() {
     const moneyFlowContainer = document.getElementById('moneyFlowSummary');
     if (moneyFlowContainer) {
         moneyFlowContainer.innerHTML = `
-            <div class="money-flow-item income">
-                <h4>Income</h4>
-                <div class="value">${formatCurrency(totalIncome, false)}</div>
-            </div>
-            <div class="money-flow-item expenses">
-                <h4>Expenses</h4>
-                <div class="value">${formatCurrency(expenseTotal, false)}</div>
-            </div>
-            <div class="money-flow-item savings">
-                <h4>Savings</h4>
-                <div class="value">${formatCurrency(savingsTotal, false)}</div>
-            </div>
-            <div class="money-flow-item remaining">
-                <h4>Remaining</h4>
-                <div class="value">${formatCurrency(remaining, false)}</div>
+            <div class="report-summary-card">
+                <div class="report-row income">
+                    <span class="label">Income</span>
+                    <span class="value">${formatCurrency(totalIncome)}</span>
+                </div>
+                <div class="report-row expenses">
+                    <span class="label">Expenses</span>
+                    <span class="value">-${formatCurrency(expenseTotal)}</span>
+                </div>
+                <div class="report-row savings">
+                    <span class="label">Savings</span>
+                    <span class="value">-${formatCurrency(savingsTotal)}</span>
+                </div>
+                <div class="report-divider"></div>
+                <div class="report-row remaining">
+                    <span class="label">Remaining</span>
+                    <span class="value">${formatCurrency(remaining)}</span>
+                </div>
             </div>
         `;
     }
@@ -781,12 +789,17 @@ function renderReports() {
     // Render Summary Cards
     const cardsContainer = document.getElementById('summaryCards');
     if (cardsContainer) {
-        cardsContainer.innerHTML = `
-            <div class="summary-card ${budgetRemaining >= 0 ? 'success' : 'warning'}">
-                <h3>${budgetRemaining >= 0 ? 'Budget Remaining' : 'Over Budget'}</h3>
-                <div class="value">${formatCurrency(Math.abs(budgetRemaining), false)}</div>
-            </div>
-        `;
+        // Only show if budgets are set
+        if (totalBudget > 0) {
+            cardsContainer.innerHTML = `
+                <div class="summary-card ${budgetRemaining >= 0 ? 'success' : 'warning'}">
+                    <h3>${budgetRemaining >= 0 ? 'Budget Remaining' : 'Over Budget'}</h3>
+                    <div class="value">${formatCurrency(Math.abs(budgetRemaining), false)}</div>
+                </div>
+            `;
+        } else {
+            cardsContainer.innerHTML = '';
+        }
     }
 
     // Remove old comparison
@@ -806,19 +819,31 @@ function renderReports() {
                 </div>
             `;
         } else {
+            // Calculate total expenses for percentage calculation
+            const totalExp = categories.reduce((sum, [_, amt]) => sum + amt, 0);
+
             chartContainer.innerHTML = categories.map(([cat, amount]) => {
-                const percentage = (amount / maxSpending) * 100;
+                // Width relative to max spending for visual scaling
+                const visualPercentage = (amount / maxSpending) * 100;
+                // Actual percentage of total
+                const actualPercentage = (amount / totalExp) * 100;
+
                 const catInfo = getCategory(cat);
                 const color = catInfo ? catInfo.color : '#6b7280';
                 const name = catInfo ? catInfo.name : getCategoryName(cat);
                 const icon = catInfo ? catInfo.icon : '';
+
                 return `
-                    <div class="bar-row">
-                        <div class="bar-label">${icon} ${name}</div>
-                        <div class="bar-container">
-                            <div class="bar" style="width: ${Math.max(percentage, 10)}%; background: ${color}">
+                    <div class="chart-row">
+                        <div class="chart-header">
+                            <span class="chart-cat-name">${icon} ${name}</span>
+                            <span class="chart-cat-amount">
                                 ${formatCurrency(amount)}
-                            </div>
+                                <span class="chart-cat-percent">(${Math.round(actualPercentage)}%)</span>
+                            </span>
+                        </div>
+                        <div class="chart-bar-bg">
+                            <div class="chart-bar-fill" style="width: ${visualPercentage}%; background-color: ${color}"></div>
                         </div>
                     </div>
                 `;
@@ -836,8 +861,13 @@ function renderReports() {
                 .sort((a, b) => b[1] - a[1])
                 .map(([name, amount]) => `
                     <div class="savings-item">
-                        <span class="name">${name}</span>
-                        <span class="amount">${formatCurrency(amount)}</span>
+                        <div class="chart-header">
+                            <span class="chart-cat-name">${name}</span>
+                            <span class="chart-cat-amount">${formatCurrency(amount)}</span>
+                        </div>
+                         <div class="chart-bar-bg">
+                            <div class="chart-bar-fill" style="width: ${Math.min((amount / savingsTotal) * 100, 100)}%; background-color: var(--cat-savings)"></div>
+                        </div>
                     </div>
                 `).join('');
         } else {
@@ -1082,6 +1112,95 @@ async function clearAllData() {
 }
 
 // ============================================
+// Quick Stats
+// ============================================
+function renderQuickStats() {
+    const container = document.getElementById('quickStats');
+    if (!container) return;
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const startOfWeek = getStartOfWeek(new Date(today)); // Clone date
+    // Reset startOfWeek to midnight
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const monthKey = getCurrentMonthKey();
+    const monthExpenses = getMonthExpenses(monthKey);
+
+    // Calculate totals
+    let todayTotal = 0;
+    let weekTotal = 0;
+    let monthTotal = 0;
+
+    // For availability calculation
+    const netIncome = getMonthlyIncome(monthKey);
+
+    // Sum of all income transactions (if netIncome not manually set)
+    let incomeTxTotal = 0;
+    // Sum of all outgoings (expenses + savings)
+    let totalSpent = 0;
+
+    monthExpenses.forEach(exp => {
+        const parentCat = exp.parent_category || exp.category || 'other';
+
+        if (isIncomeCategory(parentCat)) {
+            incomeTxTotal += exp.amount;
+        } else {
+            // Count as spent (expenses + savings)
+            totalSpent += exp.amount;
+
+            // For quick stats (expenses only, exclude savings usually?
+            // The plan said "Quick Stats on Expenses Tab", usually implies spending.
+            // But "Available" should include savings deduction.
+            // Let's count "Expenses" for Today/Week/Month, but exclude Savings from those counts
+            // so we track "Spending", not "Saving".
+            if (isExpenseCategory(parentCat)) {
+                monthTotal += exp.amount;
+
+                if (exp.date === todayStr) {
+                    todayTotal += exp.amount;
+                }
+
+                const expDate = new Date(exp.date);
+                expDate.setHours(0, 0, 0, 0);
+                if (expDate >= startOfWeek) {
+                    weekTotal += exp.amount;
+                }
+            }
+        }
+    });
+
+    const totalIncome = netIncome > 0 ? netIncome : incomeTxTotal;
+    const available = totalIncome - totalSpent;
+
+    container.innerHTML = `
+        <div class="quick-stat-card">
+            <div class="label">Today</div>
+            <div class="value">${formatCurrency(todayTotal, false)}</div>
+        </div>
+        <div class="quick-stat-card">
+            <div class="label">This Week</div>
+            <div class="value">${formatCurrency(weekTotal, false)}</div>
+        </div>
+        <div class="quick-stat-card">
+            <div class="label">This Month</div>
+            <div class="value">${formatCurrency(monthTotal, false)}</div>
+        </div>
+        <div class="quick-stat-card highlight">
+            <div class="label">Available</div>
+            <div class="value">${formatCurrency(available, false)}</div>
+        </div>
+    `;
+}
+
+function getStartOfWeek(date) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+    return new Date(d.setDate(diff));
+}
+
+// ============================================
 // Render All
 // ============================================
 function renderAll() {
@@ -1089,6 +1208,7 @@ function renderAll() {
     renderExpenses();
     renderBudgets();
     renderIncomeDisplay();
+    renderQuickStats();
 
     if (document.getElementById('reports')?.classList.contains('active')) {
         renderReports();
