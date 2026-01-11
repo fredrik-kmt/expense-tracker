@@ -83,58 +83,69 @@
             <!-- Expenses Section -->
             <section id="expenses" class="section active">
 
-                <!-- Add Income -->
-                <div class="add-section add-income-section">
-                    <h3>Add Income</h3>
-                    <form id="incomeForm" class="inline-form">
+                <!-- Monthly Income (old clean layout) -->
+                <div class="income-section">
+                    <h3>Monthly Income <span id="incomeMonthLabel"></span></h3>
+                    <form id="incomeForm" class="income-form">
                         <div class="form-group">
-                            <label for="incomeDescription">Description</label>
-                            <input type="text" id="incomeDescription" placeholder="e.g. Salary, Freelance work" required>
+                            <label for="netIncome">Net income this month (kr)</label>
+                            <div class="income-input-row">
+                                <input type="number" id="netIncome" step="0.01" min="0" placeholder="e.g. 25000" required>
+                                <button type="submit" class="btn">Save</button>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="incomeAmount">Amount (kr)</label>
-                            <input type="number" id="incomeAmount" step="0.01" min="0" placeholder="0.00" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Type</label>
-                            <div id="incomeCategoryPicker"></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="incomeDate">Date</label>
-                            <input type="date" id="incomeDate" required>
-                        </div>
-                        <button type="submit" class="btn btn-income">Add Income</button>
                     </form>
+                    <div id="currentIncomeDisplay" class="current-income-display"></div>
                 </div>
 
-                <!-- Add Savings -->
-                <div class="add-section add-savings-section">
+                <!-- Add Savings (compact with type boxes) -->
+                <div class="savings-section">
                     <h3>Add Savings</h3>
-                    <form id="savingsForm" class="inline-form">
-                        <div class="form-group">
-                            <label for="savingsDescription">Description</label>
-                            <input type="text" id="savingsDescription" placeholder="e.g. Emergency fund, ETF purchase" required>
+                    <form id="savingsForm" class="savings-form">
+                        <div class="savings-types">
+                            <label class="savings-type-btn">
+                                <input type="radio" name="savingsType" value="Emergency Buffer" checked>
+                                <span>Emergency Buffer</span>
+                            </label>
+                            <label class="savings-type-btn">
+                                <input type="radio" name="savingsType" value="Stocks">
+                                <span>Stocks</span>
+                            </label>
+                            <label class="savings-type-btn">
+                                <input type="radio" name="savingsType" value="ETFs/Funds">
+                                <span>ETFs/Funds</span>
+                            </label>
+                            <label class="savings-type-btn">
+                                <input type="radio" name="savingsType" value="Pension">
+                                <span>Pension</span>
+                            </label>
+                            <label class="savings-type-btn">
+                                <input type="radio" name="savingsType" value="Travel Savings">
+                                <span>Travel</span>
+                            </label>
+                            <label class="savings-type-btn">
+                                <input type="radio" name="savingsType" value="Other Savings">
+                                <span>Other</span>
+                            </label>
                         </div>
-                        <div class="form-group">
-                            <label for="savingsAmount">Amount (kr)</label>
-                            <input type="number" id="savingsAmount" step="0.01" min="0" placeholder="0.00" required>
+                        <div class="savings-input-row">
+                            <div class="form-group">
+                                <label for="savingsMonth">Month</label>
+                                <input type="month" id="savingsMonth" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="savingsAmount">Amount (kr)</label>
+                                <input type="number" id="savingsAmount" step="0.01" min="0" placeholder="0.00" required>
+                            </div>
+                            <button type="submit" class="btn btn-savings">Add</button>
                         </div>
-                        <div class="form-group">
-                            <label>Type</label>
-                            <div id="savingsCategoryPicker"></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="savingsDate">Date</label>
-                            <input type="date" id="savingsDate" required>
-                        </div>
-                        <button type="submit" class="btn btn-savings">Add Savings</button>
                     </form>
                 </div>
 
                 <!-- Add Expense -->
-                <div class="add-section add-expense-section">
-                    <h3>Add Expense</h3>
-                    <form id="expenseForm" class="inline-form">
+                <h2>Add Expense</h2>
+                <form id="expenseForm">
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="description">Description</label>
                             <input type="text" id="description" placeholder="What did you spend on?" required>
@@ -143,6 +154,8 @@
                             <label for="amount">Amount (kr)</label>
                             <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required>
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label>Category</label>
                             <div id="expenseCategoryPicker"></div>
@@ -151,9 +164,9 @@
                             <label for="date">Date</label>
                             <input type="date" id="date" required>
                         </div>
-                        <button type="submit" class="btn btn-expense">Add Expense</button>
-                    </form>
-                </div>
+                    </div>
+                    <button type="submit" class="btn">Add Expense</button>
+                </form>
 
                 <div class="expense-list" id="expenseList"></div>
             </section>

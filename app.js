@@ -222,7 +222,7 @@ function initializeUI() {
     // Forms
     document.getElementById('expenseForm')?.addEventListener('submit', addExpense);
     document.getElementById('budgetForm')?.addEventListener('submit', setBudget);
-    document.getElementById('incomeForm')?.addEventListener('submit', addIncome);
+    document.getElementById('incomeForm')?.addEventListener('submit', setMonthlyIncome);
     document.getElementById('savingsForm')?.addEventListener('submit', addSavings);
 
     // Data management
@@ -238,33 +238,23 @@ function initializeUI() {
 // Category Picker Initialization
 // ============================================
 function initializeCategoryPicker() {
-    // Income category picker (only income subcategories)
-    const incomeContainer = document.getElementById('incomeCategoryPicker');
-    if (incomeContainer) {
-        incomeContainer.innerHTML = createCategoryPickerHTML('income', 'Salary', 'incomeCategoryPicker', 'income');
-    }
-
-    // Savings category picker (only savings subcategories)
-    const savingsContainer = document.getElementById('savingsCategoryPicker');
-    if (savingsContainer) {
-        savingsContainer.innerHTML = createCategoryPickerHTML('savings', 'Other Savings', 'savingsCategoryPicker', 'savings');
-    }
-
     // Expense category picker (only expense categories, no income/savings)
     const expenseContainer = document.getElementById('expenseCategoryPicker');
     if (expenseContainer) {
         expenseContainer.innerHTML = createCategoryPickerHTML('', '', 'categoryPicker', 'expenses');
     }
 
-    // Set default dates
+    // Set default date for expense form
     const today = new Date().toISOString().split('T')[0];
-    const incomeDate = document.getElementById('incomeDate');
-    const savingsDate = document.getElementById('savingsDate');
     const expenseDate = document.getElementById('date');
-
-    if (incomeDate) incomeDate.value = today;
-    if (savingsDate) savingsDate.value = today;
     if (expenseDate) expenseDate.value = today;
+
+    // Set default month for savings form (current month)
+    const savingsMonth = document.getElementById('savingsMonth');
+    if (savingsMonth) {
+        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+        savingsMonth.value = currentMonth;
+    }
 }
 
 function initializeBudgetCategorySelector() {
@@ -303,9 +293,17 @@ function changeMonth(delta) {
 
 function updateMonthDisplay() {
     const options = { month: 'long', year: 'numeric' };
+    const monthText = App.currentDate.toLocaleDateString('en-US', options);
+
     const el = document.getElementById('currentMonth');
     if (el) {
-        el.textContent = App.currentDate.toLocaleDateString('en-US', options);
+        el.textContent = monthText;
+    }
+
+    // Update income month label
+    const incomeLabel = document.getElementById('incomeMonthLabel');
+    if (incomeLabel) {
+        incomeLabel.textContent = `(${monthText})`;
     }
 }
 
@@ -460,61 +458,26 @@ async function deleteMonthlyIncomeHandler() {
 }
 
 // ============================================
-// Add Income
-// ============================================
-async function addIncome(e) {
-    e.preventDefault();
-    if (App.isLoading) return;
-
-    const parentCategory = document.getElementById('incomeCategoryPicker_parent')?.value || 'income';
-    const subcategory = document.getElementById('incomeCategoryPicker_sub')?.value || 'Salary';
-
-    const income = {
-        description: document.getElementById('incomeDescription').value.trim(),
-        amount: parseFloat(document.getElementById('incomeAmount').value),
-        parent_category: parentCategory,
-        subcategory: subcategory,
-        date: document.getElementById('incomeDate').value
-    };
-
-    setLoading(true);
-    try {
-        const savedIncome = await addExpenseToDb(income);
-        App.expenses.unshift({
-            id: savedIncome.id,
-            ...income
-        });
-        renderExpenses();
-        renderReports();
-
-        // Reset form
-        document.getElementById('incomeDescription').value = '';
-        document.getElementById('incomeAmount').value = '';
-        document.getElementById('incomeDate').value = new Date().toISOString().split('T')[0];
-    } catch (error) {
-        console.error('Error adding income:', error);
-        alert('Error adding income. Please try again.');
-    } finally {
-        setLoading(false);
-    }
-}
-
-// ============================================
 // Add Savings
 // ============================================
 async function addSavings(e) {
     e.preventDefault();
     if (App.isLoading) return;
 
-    const parentCategory = document.getElementById('savingsCategoryPicker_parent')?.value || 'savings';
-    const subcategory = document.getElementById('savingsCategoryPicker_sub')?.value || 'Other Savings';
+    // Get selected savings type from radio buttons
+    const selectedType = document.querySelector('input[name="savingsType"]:checked');
+    const subcategory = selectedType ? selectedType.value : 'Other Savings';
+
+    // Get month and convert to first day of month for date
+    const monthValue = document.getElementById('savingsMonth').value; // YYYY-MM
+    const date = monthValue + '-01'; // First day of the month
 
     const savings = {
-        description: document.getElementById('savingsDescription').value.trim(),
+        description: subcategory, // Use the type as description
         amount: parseFloat(document.getElementById('savingsAmount').value),
-        parent_category: parentCategory,
+        parent_category: 'savings',
         subcategory: subcategory,
-        date: document.getElementById('savingsDate').value
+        date: date
     };
 
     setLoading(true);
@@ -527,10 +490,8 @@ async function addSavings(e) {
         renderExpenses();
         renderReports();
 
-        // Reset form
-        document.getElementById('savingsDescription').value = '';
+        // Reset amount only, keep type and month selected for quick multiple entries
         document.getElementById('savingsAmount').value = '';
-        document.getElementById('savingsDate').value = new Date().toISOString().split('T')[0];
     } catch (error) {
         console.error('Error adding savings:', error);
         alert('Error adding savings. Please try again.');
@@ -1124,6 +1085,7 @@ function renderAll() {
     updateMonthDisplay();
     renderExpenses();
     renderBudgets();
+    renderIncomeDisplay();
 
     if (document.getElementById('reports')?.classList.contains('active')) {
         renderReports();
@@ -1150,7 +1112,7 @@ function escapeHtml(text) {
 // Make functions available globally
 window.deleteExpense = deleteExpense;
 window.deleteBudget = deleteBudget;
+window.deleteMonthlyIncomeHandler = deleteMonthlyIncomeHandler;
 window.selectMonth = selectMonth;
 window.jumpToMonth = jumpToMonth;
-window.addIncome = addIncome;
 window.addSavings = addSavings;

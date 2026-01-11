@@ -495,64 +495,73 @@ nav {
 }
 
 /* ========================================
-   Add Sections (Income, Savings, Expenses)
+   Savings Section
    ======================================== */
-.add-section {
+.savings-section {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
     border-radius: 10px;
     padding: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
 }
 
-.add-section h3 {
+.savings-section h3 {
+    color: #1e40af;
     margin-bottom: 15px;
     font-size: 1.1rem;
 }
 
-.add-income-section {
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+.savings-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
 }
 
-.add-income-section h3 {
-    color: #065f46;
+.savings-type-btn {
+    cursor: pointer;
 }
 
-.add-savings-section {
-    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+.savings-type-btn input {
+    display: none;
 }
 
-.add-savings-section h3 {
+.savings-type-btn span {
+    display: inline-block;
+    padding: 8px 14px;
+    border: 2px solid #93c5fd;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    background: white;
     color: #1e40af;
+    transition: all 0.2s;
 }
 
-.add-expense-section {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
+.savings-type-btn input:checked + span {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
 }
 
-.add-expense-section h3 {
-    color: #92400e;
+.savings-type-btn:hover span {
+    border-color: #3b82f6;
 }
 
-.inline-form {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 15px;
+.savings-input-row {
+    display: flex;
+    gap: 10px;
     align-items: end;
+    flex-wrap: wrap;
 }
 
-.inline-form .form-group {
+.savings-input-row .form-group {
+    flex: 1;
+    min-width: 120px;
     margin-bottom: 0;
 }
 
-.inline-form button {
+.savings-input-row button {
     height: 42px;
-}
-
-.btn-income {
-    background: #10b981 !important;
-}
-
-.btn-income:hover {
-    background: #059669 !important;
+    padding: 0 20px;
 }
 
 .btn-savings {
@@ -563,15 +572,9 @@ nav {
     background: #2563eb !important;
 }
 
-.btn-expense {
-    background: #f59e0b !important;
-}
-
-.btn-expense:hover {
-    background: #d97706 !important;
-}
-
-/* Legacy income section (keeping for backwards compatibility) */
+/* ========================================
+   Income Section
+   ======================================== */
 .income-section {
     background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
     border-radius: 10px;
