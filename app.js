@@ -249,12 +249,14 @@ function initializeCategoryPicker() {
     const expenseDate = document.getElementById('date');
     if (expenseDate) expenseDate.value = today;
 
-    // Set default month for savings form (current month)
+    // Set default month for income and savings forms (current month)
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+
+    const incomeMonth = document.getElementById('incomeMonth');
+    if (incomeMonth) incomeMonth.value = currentMonth;
+
     const savingsMonth = document.getElementById('savingsMonth');
-    if (savingsMonth) {
-        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
-        savingsMonth.value = currentMonth;
-    }
+    if (savingsMonth) savingsMonth.value = currentMonth;
 }
 
 function initializeBudgetCategorySelector() {
@@ -298,12 +300,6 @@ function updateMonthDisplay() {
     const el = document.getElementById('currentMonth');
     if (el) {
         el.textContent = monthText;
-    }
-
-    // Update income month label
-    const incomeLabel = document.getElementById('incomeMonthLabel');
-    if (incomeLabel) {
-        incomeLabel.textContent = `(${monthText})`;
     }
 }
 
@@ -398,7 +394,12 @@ async function setMonthlyIncome(e) {
     if (App.isLoading) return;
 
     const amount = parseFloat(document.getElementById('netIncome').value);
-    const monthKey = getCurrentMonthKey();
+    const monthKey = document.getElementById('incomeMonth').value; // YYYY-MM from month picker
+
+    if (!monthKey) {
+        alert('Please select a month');
+        return;
+    }
 
     setLoading(true);
     try {
@@ -406,7 +407,9 @@ async function setMonthlyIncome(e) {
         App.monthlyIncome[monthKey] = amount;
         renderIncomeDisplay();
         renderReports();
-        e.target.reset();
+
+        // Reset amount only, keep month selected
+        document.getElementById('netIncome').value = '';
     } catch (error) {
         console.error('Error saving income:', error);
         alert('Error saving income. Please try again.');

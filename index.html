@@ -83,16 +83,20 @@
             <!-- Expenses Section -->
             <section id="expenses" class="section active">
 
-                <!-- Monthly Income (old clean layout) -->
+                <!-- Monthly Income -->
                 <div class="income-section">
-                    <h3>Monthly Income <span id="incomeMonthLabel"></span></h3>
+                    <h3>Monthly Income</h3>
                     <form id="incomeForm" class="income-form">
-                        <div class="form-group">
-                            <label for="netIncome">Net income this month (kr)</label>
-                            <div class="income-input-row">
-                                <input type="number" id="netIncome" step="0.01" min="0" placeholder="e.g. 25000" required>
-                                <button type="submit" class="btn">Save</button>
+                        <div class="income-input-row">
+                            <div class="form-group">
+                                <label for="incomeMonth">Month</label>
+                                <input type="month" id="incomeMonth" required>
                             </div>
+                            <div class="form-group income-amount-group">
+                                <label for="netIncome">Amount (kr)</label>
+                                <input type="number" id="netIncome" step="0.01" min="0" placeholder="e.g. 25000" required>
+                            </div>
+                            <button type="submit" class="btn btn-income">Save</button>
                         </div>
                     </form>
                     <div id="currentIncomeDisplay" class="current-income-display"></div>

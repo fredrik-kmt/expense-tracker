@@ -595,18 +595,30 @@ nav {
 .income-input-row {
     display: flex;
     gap: 10px;
+    align-items: end;
+    flex-wrap: wrap;
 }
 
-.income-input-row input {
+.income-input-row .form-group {
+    margin-bottom: 0;
+}
+
+.income-input-row .income-amount-group {
     flex: 1;
+    min-width: 120px;
 }
 
-.income-input-row .btn {
-    background: #27ae60;
+.income-input-row button {
+    height: 42px;
+    padding: 0 20px;
 }
 
-.income-input-row .btn:hover {
-    background: #219a52;
+.btn-income {
+    background: #27ae60 !important;
+}
+
+.btn-income:hover {
+    background: #219a52 !important;
 }
 
 .current-income-display {
