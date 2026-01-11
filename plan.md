@@ -9,18 +9,11 @@ A monthly expense tracking web app built with vanilla HTML/CSS/JavaScript and Su
 
 ---
 
-## Current Tech Stack
-- Frontend: Vanilla HTML, CSS, JavaScript (no frameworks)
-- Backend: Supabase (PostgreSQL + Auth)
-- Hosting: GitHub Pages
-- PDF Parsing: PDF.js
-- Currency: Danish Kroner (kr)
+## 🎯 Immediate Task: Application Branding
 
----
-
-## 🎯 Iteration 2 - Feature Roadmap
-
-Build these features IN ORDER. Each section is a complete unit of work.
+### 0.1 Create Favicon
+- [ ] Create `favicon.svg` with a blue Euro (€) sign.
+- [ ] Update `index.html` to link the new favicon.
 
 ---
 
@@ -577,12 +570,17 @@ ExpenseApp/
 ├── csv-import.js        # CSV import
 ├── pdf-import.js        # PDF import with review flow
 ├── settings.js          # User settings (payday, theme) (NEW)
+├── favicon.svg          # NEW: App Icon
 └── plan.md              # This file
 ```
 
 ---
 
 ## Build Order Checklist
+
+### Immediate Task
+- [ ] Create `favicon.svg` (Blue Euro Sign)
+- [ ] Add link to `index.html`
 
 ### Phase 1: Categories & Subcategories
 - [x] Create database migration for expenses table
