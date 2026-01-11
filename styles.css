@@ -67,16 +67,39 @@ body {
    Header & Month Navigation
    ======================================== */
 header {
-    text-align: center;
-    padding: 40px 0;
+    padding: 20px 0 40px;
     position: relative;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.app-logo-small {
+    width: 32px;
+    height: 32px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
 }
 
 header h1 {
     color: var(--text-primary);
-    font-size: 2.2rem;
+    font-size: 1.8rem;
     font-weight: 800;
-    margin-bottom: 25px;
+    margin-bottom: 0;
     letter-spacing: -0.025em;
 }
 
@@ -1061,11 +1084,24 @@ nav {
     max-width: 420px;
 }
 
+.auth-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.auth-header .app-logo {
+    width: 40px;
+    height: 40px;
+}
+
 .auth-box h1 {
     text-align: center;
     color: var(--text-primary);
     font-size: 1.8rem;
-    margin-bottom: 10px;
+    margin: 0;
 }
 
 .auth-subtitle {
