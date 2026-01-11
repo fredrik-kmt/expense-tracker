@@ -218,6 +218,134 @@ async function deleteMonthlyIncomeFromDb(monthKey) {
 }
 
 // ============================================
+// Database Functions - User Settings
+// ============================================
+
+async function fetchUserSettings() {
+    // If the table doesn't exist yet, we'll return default settings
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .single();
+
+        if (error) {
+            // PGRU-406 usually means code=406 Not Acceptable (no rows found for .single())
+            // Or if table doesn't exist
+            if (error.code === 'PGRST116' || error.code === '42P01') {
+                 // No settings found or table missing, return defaults
+                 return {
+                     payday_day: 25,
+                     starting_balance: 0,
+                     theme: 'light'
+                 };
+            }
+            throw error;
+        }
+        return data;
+    } catch (e) {
+        console.warn('Error fetching user settings (using defaults):', e);
+        return {
+            payday_day: 25,
+            starting_balance: 0,
+            theme: 'light'
+        };
+    }
+}
+
+async function updateUserSettings(settings) {
+    // settings object: { payday_day, starting_balance, theme }
+
+    // First check if a row exists
+    const { data: existing } = await supabaseClient
+        .from('user_settings')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .single();
+
+    let error;
+
+    if (existing) {
+        // Update
+        const result = await supabaseClient
+            .from('user_settings')
+            .update({
+                ...settings,
+                updated_at: new Date()
+            })
+            .eq('user_id', currentUser.id);
+        error = result.error;
+    } else {
+        // Insert
+        const result = await supabaseClient
+            .from('user_settings')
+            .insert({
+                user_id: currentUser.id,
+                ...settings
+            });
+        error = result.error;
+    }
+
+    if (error) throw error;
+}
+
+// ============================================
+// Database Functions - Category Suggestions
+// ============================================
+
+async function fetchCategorySuggestions() {
+    const { data, error } = await supabaseClient
+        .from('category_suggestions')
+        .select('*');
+
+    if (error) {
+        console.warn('Error fetching category suggestions (table might not exist yet):', error);
+        return [];
+    }
+    return data || [];
+}
+
+async function saveCategorySuggestion(pattern, parentCategory, subcategory) {
+    // Check if pattern exists
+    const { data: existing } = await supabaseClient
+        .from('category_suggestions')
+        .select('id, use_count, parent_category, subcategory')
+        .eq('user_id', currentUser.id)
+        .eq('description_pattern', pattern)
+        .single();
+
+    if (existing) {
+        // If it exists but points to a DIFFERENT category, update it?
+        // Or just increment use_count if it's the same?
+        // For now: update to the new choice (user correction) and increment count
+        const { error } = await supabaseClient
+            .from('category_suggestions')
+            .update({
+                parent_category: parentCategory,
+                subcategory: subcategory,
+                use_count: existing.use_count + 1
+            })
+            .eq('id', existing.id);
+
+        if (error) throw error;
+    } else {
+        // Insert new suggestion
+        const { error } = await supabaseClient
+            .from('category_suggestions')
+            .insert({
+                user_id: currentUser.id,
+                description_pattern: pattern,
+                parent_category: parentCategory,
+                subcategory: subcategory,
+                use_count: 1
+            });
+
+        if (error) throw error;
+    }
+}
+
+// ============================================
 // UI State Functions
 // ============================================
 

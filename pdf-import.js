@@ -8,7 +8,8 @@
 // PDF Import state
 const PDFImport = {
     transactions: [],
-    pdfjsLoaded: false
+    pdfjsLoaded: false,
+    suggestions: [] // Loaded from Supabase
 };
 
 // Load PDF.js from CDN if not already loaded
@@ -37,7 +38,23 @@ function loadPDFJS() {
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     initPDFImport();
+    // Load suggestions if user is signed in
+    if (typeof fetchCategorySuggestions === 'function') {
+        // Wait for auth to be ready
+        setTimeout(loadSuggestions, 1000);
+    }
 });
+
+async function loadSuggestions() {
+    try {
+        if (currentUser) {
+            PDFImport.suggestions = await fetchCategorySuggestions();
+            console.log('Loaded category suggestions:', PDFImport.suggestions.length);
+        }
+    } catch (err) {
+        console.error('Failed to load suggestions:', err);
+    }
+}
 
 function initPDFImport() {
     const dropZone = document.getElementById('pdfDropZone');
@@ -303,6 +320,24 @@ function parsePDFDate(value) {
 function suggestPDFCategory(description) {
     const desc = description.toLowerCase();
 
+    // 1. Check dynamic suggestions from database
+    if (PDFImport.suggestions && PDFImport.suggestions.length > 0) {
+        // Sort suggestions by pattern length (descending) to match specific patterns first
+        const sorted = [...PDFImport.suggestions].sort((a, b) =>
+            b.description_pattern.length - a.description_pattern.length
+        );
+
+        for (const s of sorted) {
+            if (desc.includes(s.description_pattern.toLowerCase())) {
+                return {
+                    parent_category: s.parent_category,
+                    subcategory: s.subcategory
+                };
+            }
+        }
+    }
+
+    // 2. Fallback to hardcoded keywords
     // Keywords mapped to parent > subcategory
     const keywords = {
         // Food
@@ -455,12 +490,28 @@ async function importPDFSelectedTransactions() {
                 id: savedExpense.id,
                 ...expense
             });
+
+            // Save category suggestion (learn from this import)
+            if (parent_category && parent_category !== 'other') {
+                const pattern = expense.description; // Use exact description as pattern
+                // Or maybe clean it further? For now, exact description is safe.
+                try {
+                    await saveCategorySuggestion(pattern, parent_category, subcategory);
+                } catch (e) {
+                    console.warn('Failed to save suggestion:', e);
+                    // Don't fail the import just because suggestion save failed
+                }
+            }
+
             imported++;
         } catch (err) {
             console.error('Error importing expense:', err);
             errors++;
         }
     }
+
+    // Reload suggestions to include the newly learned ones
+    await loadSuggestions();
 
     setLoading(false);
 

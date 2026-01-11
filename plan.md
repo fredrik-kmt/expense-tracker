@@ -12,8 +12,8 @@ A monthly expense tracking web app built with vanilla HTML/CSS/JavaScript and Su
 ## 🎯 Immediate Task: Application Branding
 
 ### 0.1 Create Favicon
-- [ ] Create `favicon.svg` with a blue Euro (€) sign.
-- [ ] Update `index.html` to link the new favicon.
+- [x] Create `favicon.svg` with a blue Euro (€) sign.
+- [x] Update `index.html` to link the new favicon.
 
 ---
 
@@ -142,7 +142,7 @@ Replace the current `<select>` dropdown with a two-level picker:
 │ │    ├── Salary                   │ │
 │ │    ├── Side Income              │ │
 │ │    └── Other Income             │ │
-│ │ 📁 Housing                      │ │
+│ 📁 Housing                      │ │
 │ │    ├── Rent/Mortgage            │ │
 │ │    └── ...                      │ │
 │ └─────────────────────────────────┘ │
@@ -579,8 +579,8 @@ ExpenseApp/
 ## Build Order Checklist
 
 ### Immediate Task
-- [ ] Create `favicon.svg` (Blue Euro Sign)
-- [ ] Add link to `index.html`
+- [x] Create `favicon.svg` (Blue Euro Sign)
+- [x] Add link to `index.html`
 
 ### Phase 1: Categories & Subcategories
 - [x] Create database migration for expenses table
@@ -593,13 +593,13 @@ ExpenseApp/
 - [x] Update reports to show Available/Expenses/Savings split
 
 ### Phase 2: PDF Import Review Flow
-- [ ] Create category_suggestions table
-- [ ] Redesign PDF import UI with review list
-- [ ] Add checkbox for each transaction
-- [ ] Add category dropdown (hierarchical) for each row
-- [ ] Implement auto-suggest based on previous categorizations
-- [ ] Add Select All / Deselect All buttons
-- [ ] Save suggestions when user categorizes
+- [x] Create category_suggestions table
+- [x] Redesign PDF import UI with review list
+- [x] Add checkbox for each transaction
+- [x] Add category dropdown (hierarchical) for each row
+- [x] Implement auto-suggest based on previous categorizations
+- [x] Add Select All / Deselect All buttons
+- [x] Save suggestions when user categorizes
 
 ### Phase 3: Month Visualization & Payday
 - [ ] Create user_settings table
@@ -611,10 +611,10 @@ ExpenseApp/
 - [ ] Calculate and display daily budget
 
 ### Phase 4: UI/UX Improvements
-- [ ] Update CSS color variables (softer palette)
-- [ ] Add quick stats cards to Expenses tab
-- [ ] Redesign Reports tab layout
-- [ ] Improve typography and spacing throughout
+- [x] Update CSS color variables (softer palette)
+- [x] Add quick stats cards to Expenses tab
+- [x] Redesign Reports tab layout
+- [x] Improve typography and spacing throughout
 
 ### Phase 5: Quality of Life
 - [ ] Add edit expense modal
